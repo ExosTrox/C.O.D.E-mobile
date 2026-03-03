@@ -1,0 +1,306 @@
+// ── SessionManager ──────────────────────────────────────────
+// High-level orchestration: wires tmux, streaming, and DB.
+
+import { mkdirSync, existsSync } from "fs";
+import { join } from "path";
+import type { Database } from "bun:sqlite";
+import type { SessionId, SessionStatus, SessionCreateOptions, Session } from "@code-mobile/core";
+import { PROVIDERS } from "@code-mobile/core";
+import type { TmuxService } from "./tmux.service.js";
+import { TmuxError } from "./tmux.service.js";
+import { SessionStreamer } from "./session.streamer.js";
+
+// ── DB row shape ────────────────────────────────────────────
+
+interface SessionRow {
+  id: string;
+  name: string;
+  provider_id: string;
+  model: string;
+  status: string;
+  tmux_name: string;
+  work_dir: string;
+  pid: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+// ── SessionManager ──────────────────────────────────────────
+
+export class SessionManager {
+  private streamers = new Map<string, SessionStreamer>();
+
+  constructor(
+    private readonly db: Database,
+    private readonly tmux: TmuxService,
+    private readonly dataDir: string,
+  ) {}
+
+  // ── Startup reconciliation ────────────────────────────────
+
+  /** Check DB for 'running'/'starting' sessions and verify tmux reality. */
+  async reconcile(): Promise<void> {
+    const rows = this.db
+      .query<SessionRow, []>(
+        "SELECT * FROM sessions WHERE status IN ('starting', 'running')",
+      )
+      .all();
+
+    for (const row of rows) {
+      const alive = await this.tmux.hasSession(row.tmux_name);
+      if (!alive) {
+        this.db.run(
+          "UPDATE sessions SET status = 'stopped', updated_at = unixepoch() WHERE id = ?",
+          [row.id],
+        );
+      } else {
+        // Re-attach streamer for live sessions
+        this.ensureStreamer(row.id, row.tmux_name);
+      }
+    }
+  }
+
+  // ── Create ────────────────────────────────────────────────
+
+  async createSession(options: SessionCreateOptions): Promise<Session> {
+    const id = crypto.randomUUID() as SessionId;
+    const shortId = id.slice(0, 8);
+    const tmuxName = `cm-${shortId}`;
+    const name = options.name ?? `${options.providerId}-${shortId}`;
+
+    // Resolve provider spawn command
+    const provider = PROVIDERS[options.providerId];
+    if (!provider) {
+      throw new Error(`Unknown provider: ${options.providerId}`);
+    }
+    const model = options.model ?? provider.defaultModel;
+    const { command, args } = this.resolveSpawnCommand(options.providerId, model);
+
+    // Work directory
+    const workDir = options.workDir ?? process.cwd();
+
+    // Ensure session output directory
+    const sessionDir = join(this.dataDir, "sessions", id);
+    mkdirSync(sessionDir, { recursive: true });
+    const outputPath = join(sessionDir, "output.log");
+
+    // Build env vars
+    const env: Record<string, string> = {
+      ...options.envVars,
+      TERM: "xterm-256color",
+    };
+
+    // Create the tmux session
+    await this.tmux.createSession(tmuxName, command, args, env);
+
+    // Pipe terminal output to file
+    await this.tmux.pipePaneToFile(tmuxName, outputPath);
+
+    // Start streamer
+    const streamer = new SessionStreamer(id, outputPath);
+    streamer.start();
+    this.streamers.set(id, streamer);
+
+    // Insert into DB
+    this.db.run(
+      `INSERT INTO sessions (id, name, provider_id, model, status, tmux_name, work_dir)
+       VALUES (?, ?, ?, ?, 'running', ?, ?)`,
+      [id, name, options.providerId, model, tmuxName, workDir],
+    );
+
+    const row = this.db
+      .query<SessionRow, [string]>("SELECT * FROM sessions WHERE id = ?")
+      .get(id);
+    if (!row) throw new Error("Failed to read newly created session");
+    return this.rowToSession(row);
+  }
+
+  // ── Stop ──────────────────────────────────────────────────
+
+  async stopSession(id: string): Promise<void> {
+    const row = this.getRow(id);
+    if (!row) throw new Error("Session not found");
+    if (row.status === "stopped") return;
+
+    // Graceful shutdown: Ctrl-C → wait → "exit" → wait → kill
+    try {
+      await this.tmux.sendKeys(row.tmux_name, "C-c");
+      await sleep(3000);
+
+      if (await this.tmux.hasSession(row.tmux_name)) {
+        await this.tmux.sendText(row.tmux_name, "exit");
+        await this.tmux.sendKeys(row.tmux_name, "Enter");
+        await sleep(2000);
+      }
+
+      if (await this.tmux.hasSession(row.tmux_name)) {
+        await this.tmux.killSession(row.tmux_name);
+      }
+    } catch (err) {
+      // Session may have already exited or tmux server stopped
+      if (err instanceof TmuxError) {
+        if (err.code !== "SESSION_NOT_FOUND" && err.code !== "SERVER_NOT_RUNNING") {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
+
+    // Stop streamer
+    const streamer = this.streamers.get(id);
+    if (streamer) {
+      streamer.stop();
+      this.streamers.delete(id);
+    }
+
+    // Update DB (may fail if DB was closed during shutdown)
+    try {
+      this.db.run(
+        "UPDATE sessions SET status = 'stopped', updated_at = unixepoch() WHERE id = ?",
+        [id],
+      );
+    } catch {
+      // DB may have been closed already
+    }
+  }
+
+  // ── I/O forwarding ────────────────────────────────────────
+
+  async sendInput(id: string, text: string): Promise<void> {
+    const row = this.getRunningRow(id);
+    await this.tmux.sendText(row.tmux_name, text);
+  }
+
+  async sendKeys(id: string, keys: string): Promise<void> {
+    const row = this.getRunningRow(id);
+    await this.tmux.sendKeys(row.tmux_name, keys);
+  }
+
+  async resizeTerminal(id: string, cols: number, rows: number): Promise<void> {
+    const row = this.getRunningRow(id);
+    await this.tmux.resizeWindow(row.tmux_name, cols, rows);
+  }
+
+  // ── Streamer access ───────────────────────────────────────
+
+  getStreamer(id: string): SessionStreamer | undefined {
+    return this.streamers.get(id);
+  }
+
+  // ── Queries ───────────────────────────────────────────────
+
+  listSessions(
+    status?: SessionStatus,
+    providerId?: string,
+  ): Session[] {
+    let sql = "SELECT * FROM sessions WHERE 1=1";
+    const params: string[] = [];
+
+    if (status) {
+      sql += " AND status = ?";
+      params.push(status);
+    }
+    if (providerId) {
+      sql += " AND provider_id = ?";
+      params.push(providerId);
+    }
+    sql += " ORDER BY created_at DESC";
+
+    return this.db
+      .query<SessionRow, string[]>(sql)
+      .all(...params)
+      .map((r) => this.rowToSession(r));
+  }
+
+  getSession(id: string): Session | null {
+    const row = this.getRow(id);
+    return row ? this.rowToSession(row) : null;
+  }
+
+  // ── Cleanup ───────────────────────────────────────────────
+
+  /** Stop all streamers (for graceful shutdown). */
+  stopAll(): void {
+    for (const [, streamer] of this.streamers) {
+      streamer.stop();
+    }
+    this.streamers.clear();
+  }
+
+  // ── Internals ─────────────────────────────────────────────
+
+  private getRow(id: string): SessionRow | null {
+    return (
+      this.db
+        .query<SessionRow, [string]>("SELECT * FROM sessions WHERE id = ?")
+        .get(id) ?? null
+    );
+  }
+
+  private getRunningRow(id: string): SessionRow {
+    const row = this.getRow(id);
+    if (!row) throw new Error("Session not found");
+    if (row.status !== "running" && row.status !== "starting") {
+      throw new Error(`Session is not running (status: ${row.status})`);
+    }
+    return row;
+  }
+
+  private ensureStreamer(id: string, _tmuxName: string): void {
+    if (this.streamers.has(id)) return;
+
+    const outputPath = join(this.dataDir, "sessions", id, "output.log");
+    if (!existsSync(outputPath)) return;
+
+    const streamer = new SessionStreamer(id, outputPath);
+    streamer.start();
+    this.streamers.set(id, streamer);
+  }
+
+  private rowToSession(row: SessionRow): Session {
+    return {
+      id: row.id as SessionId,
+      name: row.name,
+      providerId: row.provider_id as Session["providerId"],
+      model: row.model,
+      status: row.status as SessionStatus,
+      createdAt: new Date(row.created_at * 1000),
+      updatedAt: new Date(row.updated_at * 1000),
+      pid: row.pid,
+      tmuxSessionName: row.tmux_name,
+      workDir: row.work_dir,
+    };
+  }
+
+  /**
+   * Resolve a provider ID + model into a spawn command.
+   * This is a simple mapping; full provider adapters come later.
+   * Protected so tests can override it.
+   */
+  protected resolveSpawnCommand(
+    providerId: string,
+    _model: string,
+  ): { command: string; args: string[] } {
+    switch (providerId) {
+      case "claude-code":
+        return { command: "claude", args: [] };
+      case "openai-codex":
+        return { command: "codex", args: [] };
+      case "gemini-cli":
+        return { command: "gemini", args: [] };
+      case "deepseek":
+        return { command: "deepseek", args: [] };
+      case "openclaw":
+        return { command: "openclaw", args: [] };
+      default:
+        throw new Error(`No spawn command for provider: ${providerId}`);
+    }
+  }
+}
+
+// ── Helpers ─────────────────────────────────────────────────
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

@@ -7,9 +7,10 @@ export type ApiResponse<T> =
 // --- Client → Server WebSocket Messages ---
 
 export type ClientMessage =
-  | { type: "subscribe"; sessionId: SessionId }
+  | { type: "subscribe"; sessionId: SessionId; offset?: number }
   | { type: "unsubscribe"; sessionId: SessionId }
   | { type: "input"; sessionId: SessionId; text: string }
+  | { type: "keys"; sessionId: SessionId; keys: string }
   | { type: "resize"; sessionId: SessionId; cols: number; rows: number }
   | { type: "ping" };
 
@@ -34,4 +35,5 @@ export type ServerMessage =
       requestId: string;
       description: string;
     }
+  | { type: "connected"; sessionCount: number }
   | { type: "pong"; timestamp: number };

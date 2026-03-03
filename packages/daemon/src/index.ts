@@ -1,4 +1,5 @@
 import { mkdirSync } from "fs";
+import { websocket } from "hono/bun";
 import { loadConfig } from "./config.js";
 import { AppDatabase } from "./db/index.js";
 import { createApp } from "./server.js";
@@ -15,13 +16,14 @@ const database = new AppDatabase(config.dataDir);
 database.runMigrations();
 
 // ── Create Hono app ──────────────────────────────────────────
-const app = createApp(config, database);
+const { app, cleanup } = createApp(config, database);
 
-// ── Start HTTP server ────────────────────────────────────────
+// ── Start HTTP + WebSocket server ────────────────────────────
 const server = Bun.serve({
   port: config.port,
   hostname: config.host,
   fetch: app.fetch,
+  websocket,
 });
 
 console.log(`
@@ -37,6 +39,9 @@ console.log(`
 // ── Graceful shutdown ────────────────────────────────────────
 async function shutdown(signal: string) {
   console.log(`\n[daemon] Received ${signal}, shutting down...`);
+
+  // Clean up session streamers and keepalive timers
+  cleanup();
 
   // Stop accepting new connections
   server.stop();
