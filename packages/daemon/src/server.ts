@@ -6,11 +6,17 @@ import { HTTPException } from "hono/http-exception";
 import type { ApiResponse } from "@code-mobile/core";
 import type { Config } from "./config.js";
 import type { AppDatabase } from "./db/index.js";
+import { AuthService } from "./auth/auth.service.js";
+import type { DecodedToken } from "./auth/auth.service.js";
+import { TotpService } from "./auth/totp.service.js";
+import { createAuthRoutes } from "./auth/auth.routes.js";
+import { createAuthMiddleware } from "./auth/auth.middleware.js";
 
 // Hono env bindings for typed context
 interface AppEnv {
   Variables: {
     requestId: string;
+    user: DecodedToken;
   };
 }
 
@@ -30,6 +36,15 @@ function isPublicPath(path: string): boolean {
 
 export function createApp(config: Config, database: AppDatabase): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
+
+  // ── Initialize auth services ───────────────────────────────
+  const authService = new AuthService(database.db, config.dataDir);
+  const totpService = new TotpService();
+
+  // Bootstrap token on first run
+  if (authService.isFirstRun()) {
+    authService.generateBootstrapToken();
+  }
 
   // ── 1. Request ID ──────────────────────────────────────────
   app.use("*", requestId());
@@ -80,23 +95,12 @@ export function createApp(config: Config, database: AppDatabase): Hono<AppEnv> {
   });
 
   // ── 5. Auth middleware (skip public paths) ─────────────────
+  const authMiddleware = createAuthMiddleware(authService);
   app.use("/api/*", async (c, next) => {
     if (isPublicPath(c.req.path)) {
       return next();
     }
-
-    const authHeader = c.req.header("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      const body: ApiResponse<never> = {
-        success: false,
-        error: { code: "UNAUTHORIZED", message: "Missing or invalid token" },
-      };
-      return c.json(body, 401);
-    }
-
-    // Token verification will be implemented in the auth module.
-    // For now, pass through if a bearer token is present.
-    await next();
+    return authMiddleware(c, next);
   });
 
   // ── Routes ─────────────────────────────────────────────────
@@ -120,15 +124,10 @@ export function createApp(config: Config, database: AppDatabase): Hono<AppEnv> {
     return c.json(body);
   });
 
-  // ── Route groups (stubs — will be implemented in later prompts) ──
+  // ── Route groups ────────────────────────────────────────────
 
-  // Auth routes
-  app.all("/api/v1/auth/*", (c) => {
-    return c.json(
-      { success: false, error: { code: "NOT_IMPLEMENTED", message: "Auth routes coming soon" } },
-      501,
-    );
-  });
+  // Auth routes (real implementation)
+  app.route("/api/v1/auth", createAuthRoutes(authService, totpService));
 
   // Session routes
   app.all("/api/v1/sessions/*", (c) => {
