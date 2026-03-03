@@ -3,7 +3,6 @@ import { Terminal, Layers, Box, Settings } from "lucide-react";
 import { cn } from "../../lib/cn";
 
 const navItems = [
-  { to: "/terminal", label: "Terminal", icon: Terminal },
   { to: "/sessions", label: "Sessions", icon: Layers },
   { to: "/providers", label: "Providers", icon: Box },
   { to: "/settings", label: "Settings", icon: Settings },

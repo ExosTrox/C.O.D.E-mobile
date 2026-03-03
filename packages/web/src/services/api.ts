@@ -32,11 +32,12 @@ interface SetupResponse {
   totp: { secret: string; uri: string; qrCodeDataUrl: string };
 }
 
-interface HealthResponse {
+export interface HealthResponse {
   status: string;
   version: string;
   uptime: number;
   sessions: number;
+  isSetupComplete?: boolean;
 }
 
 interface OutputResponse {
@@ -304,8 +305,9 @@ export class ApiClient {
 
   // ── Health ──────────────────────────────────────────────
 
-  async checkHealth(): Promise<HealthResponse> {
-    const res = await fetch(`${this.baseUrl}/health`);
+  async checkHealth(overrideUrl?: string): Promise<HealthResponse> {
+    const base = overrideUrl ?? this.baseUrl;
+    const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(10_000) });
     const json = (await res.json()) as ApiResponse<HealthResponse>;
     if (!json.success) {
       throw new ApiError(res.status, json.error.code, json.error.message);

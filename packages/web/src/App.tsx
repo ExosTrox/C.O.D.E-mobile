@@ -1,15 +1,17 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 
 import { Shell } from "./components/layout/Shell";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
+import { DefaultRedirect } from "./components/layout/DefaultRedirect";
+import { ConnectPage } from "./pages/Connect";
+import { LoginPage } from "./pages/Login";
+import { SetupPage } from "./pages/Setup";
 import { TerminalPage } from "./pages/Terminal";
 import { SessionsPage } from "./pages/Sessions";
 import { ProvidersPage } from "./pages/Providers";
 import { SettingsPage } from "./pages/Settings";
-import { LoginPage } from "./pages/Login";
-import { SetupPage } from "./pages/Setup";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,22 +29,22 @@ export function App() {
       <BrowserRouter>
         <Routes>
           {/* Public routes */}
+          <Route path="/connect" element={<ConnectPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/setup" element={<SetupPage />} />
 
           {/* Protected routes with shell layout */}
           <Route element={<ProtectedRoute />}>
             <Route element={<Shell />}>
-              <Route path="/terminal" element={<TerminalPage />} />
-              <Route path="/terminal/:sessionId" element={<TerminalPage />} />
               <Route path="/sessions" element={<SessionsPage />} />
+              <Route path="/terminal/:sessionId" element={<TerminalPage />} />
               <Route path="/providers" element={<ProvidersPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>
 
-          {/* Default redirect */}
-          <Route path="*" element={<Navigate to="/terminal" replace />} />
+          {/* Smart default redirect */}
+          <Route path="*" element={<DefaultRedirect />} />
         </Routes>
       </BrowserRouter>
 
