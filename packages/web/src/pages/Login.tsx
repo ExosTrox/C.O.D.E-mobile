@@ -2,13 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Terminal, Eye, EyeOff } from "lucide-react";
 import { useAuthStore } from "../stores/auth.store";
-import { api, ApiError } from "../services/api";
+import { apiClient, ApiError } from "../services/api";
+import { getDeviceName } from "../lib/device";
 
 export function LoginPage() {
   const navigate = useNavigate();
   const setTokens = useAuthStore((s) => s.setTokens);
 
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -21,18 +21,13 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await api.post<{
-        accessToken: string;
-        refreshToken: string;
-      }>("/auth/login", {
-        username,
+      const tokens = await apiClient.login(
         password,
         totpCode,
-        deviceId: getDeviceId(),
-        deviceName: navigator.userAgent.slice(0, 64),
-      });
+        getDeviceName(),
+      );
 
-      setTokens(res.accessToken, res.refreshToken);
+      setTokens(tokens.accessToken, tokens.refreshToken);
       navigate("/terminal", { replace: true });
     } catch (err) {
       if (err instanceof ApiError) {
@@ -62,21 +57,6 @@ export function LoginPage() {
               {error}
             </div>
           )}
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-text-secondary">
-              Username
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg bg-surface-2 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent transition-colors"
-              placeholder="admin"
-              required
-              autoComplete="username"
-            />
-          </div>
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-text-secondary">
@@ -135,14 +115,4 @@ export function LoginPage() {
       </div>
     </div>
   );
-}
-
-function getDeviceId(): string {
-  const key = "code-mobile-device-id";
-  let id = localStorage.getItem(key);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(key, id);
-  }
-  return id;
 }

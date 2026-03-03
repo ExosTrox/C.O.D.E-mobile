@@ -1,8 +1,12 @@
 import { Outlet } from "react-router-dom";
 import { BottomNav } from "./BottomNav";
 import { SideNav } from "./SideNav";
+import { useWs } from "../../hooks/use-ws";
 
 export function Shell() {
+  // Auto-connect WebSocket when shell mounts (user is authenticated)
+  useWs();
+
   return (
     <div className="flex min-h-screen bg-surface-0">
       <SideNav />

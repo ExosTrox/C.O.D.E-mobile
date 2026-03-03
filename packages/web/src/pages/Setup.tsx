@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Terminal, Copy, Check } from "lucide-react";
 import { useAuthStore } from "../stores/auth.store";
-import { api, ApiError } from "../services/api";
+import { apiClient, ApiError } from "../services/api";
+import { getDeviceId, getDeviceName } from "../lib/device";
 
 type Step = "credentials" | "totp" | "done";
 
@@ -14,7 +15,7 @@ export function SetupPage() {
   const [bootstrapToken, setBootstrapToken] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [_totpUri, setTotpUri] = useState("");
+  const [userId, setUserId] = useState("");
   const [totpSecret, setTotpSecret] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [error, setError] = useState("");
@@ -27,17 +28,9 @@ export function SetupPage() {
     setLoading(true);
 
     try {
-      const res = await api.post<{
-        totpUri: string;
-        totpSecret: string;
-      }>("/auth/setup", {
-        bootstrapToken,
-        username,
-        password,
-      });
-
-      setTotpUri(res.totpUri);
-      setTotpSecret(res.totpSecret);
+      const res = await apiClient.setup(bootstrapToken, username, password);
+      setUserId(res.userId);
+      setTotpSecret(res.totp.secret);
       setStep("totp");
     } catch (err) {
       if (err instanceof ApiError) {
@@ -56,17 +49,14 @@ export function SetupPage() {
     setLoading(true);
 
     try {
-      const res = await api.post<{
-        accessToken: string;
-        refreshToken: string;
-      }>("/auth/setup/verify-totp", {
-        username,
+      const tokens = await apiClient.verifyTotp(
+        userId,
         totpCode,
-        deviceId: getDeviceId(),
-        deviceName: navigator.userAgent.slice(0, 64),
-      });
+        getDeviceId(),
+        getDeviceName(),
+      );
 
-      setTokens(res.accessToken, res.refreshToken);
+      setTokens(tokens.accessToken, tokens.refreshToken);
       setSetupComplete(true);
       setStep("done");
       setTimeout(() => navigate("/terminal", { replace: true }), 1500);
@@ -235,14 +225,4 @@ export function SetupPage() {
       </div>
     </div>
   );
-}
-
-function getDeviceId(): string {
-  const key = "code-mobile-device-id";
-  let id = localStorage.getItem(key);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(key, id);
-  }
-  return id;
 }
