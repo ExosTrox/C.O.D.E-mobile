@@ -19,6 +19,9 @@ import { PermissionService } from "./permissions/permissions.service.js";
 import { createPermissionRoutes } from "./permissions/permissions.routes.js";
 import { createHookRoutes } from "./hooks/hooks.routes.js";
 import { AnalyticsService } from "./analytics/analytics.service.js";
+import { createAnalyticsRoutes } from "./analytics/analytics.routes.js";
+import { NotificationService } from "./notifications/notification.service.js";
+import { createNotificationRoutes } from "./notifications/notification.routes.js";
 
 // Hono env bindings for typed context
 interface AppEnv {
@@ -34,6 +37,7 @@ const PUBLIC_PATHS = [
   "/api/v1/auth/",
   "/api/v1/ws",
   "/internal/hooks/",
+  "/api/v1/notifications/vapid-key",
   "/assets/",
   "/manifest.json",
   "/sw.js",
@@ -67,6 +71,9 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
 
   // ── Initialize analytics service ────────────────────────
   const analyticsService = new AnalyticsService(database.db, new Map());
+
+  // ── Initialize notification service ──────────────────────
+  const notificationService = new NotificationService(database.db);
 
   // ── Initialize session services ────────────────────────────
   const tmuxService = new TmuxService();
@@ -166,6 +173,12 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
 
   // Internal hook routes (unauthenticated — localhost only)
   app.route("/internal/hooks", createHookRoutes(permissionService));
+
+  // Analytics routes
+  app.route("/api/v1/analytics", createAnalyticsRoutes(analyticsService));
+
+  // Notification routes
+  app.route("/api/v1/notifications", createNotificationRoutes(notificationService));
 
   // WebSocket (WS auth handled internally via ?token= param)
   setupSessionWebSocket(app, authService, sessionManager);

@@ -12,6 +12,7 @@ import { TerminalPage } from "./pages/Terminal";
 import { SessionsPage } from "./pages/Sessions";
 import { ProvidersPage } from "./pages/Providers";
 import { SettingsPage } from "./pages/Settings";
+import { AnalyticsPage } from "./pages/Analytics";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +40,7 @@ export function App() {
               <Route path="/sessions" element={<SessionsPage />} />
               <Route path="/terminal/:sessionId" element={<TerminalPage />} />
               <Route path="/providers" element={<ProvidersPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>

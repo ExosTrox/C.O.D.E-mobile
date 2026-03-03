@@ -1,10 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { Terminal, Layers, Box, Settings } from "lucide-react";
+import { Terminal, Layers, Box, BarChart3, Settings } from "lucide-react";
 import { cn } from "../../lib/cn";
 
 const navItems = [
   { to: "/sessions", label: "Sessions", icon: Layers },
   { to: "/providers", label: "Providers", icon: Box },
+  { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
