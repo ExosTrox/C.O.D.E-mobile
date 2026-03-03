@@ -34,6 +34,7 @@ export function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<Shell />}>
               <Route path="/terminal" element={<TerminalPage />} />
+              <Route path="/terminal/:sessionId" element={<TerminalPage />} />
               <Route path="/sessions" element={<SessionsPage />} />
               <Route path="/providers" element={<ProvidersPage />} />
               <Route path="/settings" element={<SettingsPage />} />

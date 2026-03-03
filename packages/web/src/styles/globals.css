@@ -93,6 +93,40 @@ body {
   @apply bg-surface-3 rounded-full;
 }
 
+/* ── Mobile terminal layout ────────────────────────────────── */
+
+.terminal-page {
+  height: 100dvh;
+}
+
+@supports not (height: 100dvh) {
+  .terminal-page {
+    height: 100vh;
+  }
+}
+
+.terminal-toolbar {
+  -webkit-overflow-scrolling: touch;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Prevent pull-to-refresh on terminal pages */
+.terminal-page {
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+/* Hide scrollbar on toolbar key rows */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Safe-area insets for PWA standalone ─────────────────── */
 
 @supports (padding-top: env(safe-area-inset-top)) {
