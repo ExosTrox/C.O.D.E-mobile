@@ -1,0 +1,52 @@
+# ── CODE Mobile — Docker Compose ────────────────────────────────
+#
+# Cloudflare handles SSL termination and proxies to port 3000.
+# No reverse proxy (Caddy/Nginx) needed.
+#
+# Cloudflare setup:
+#   1. Add A record: app.yourdomain.com → Hetzner server IP (orange cloud = proxied)
+#   2. SSL/TLS mode: Full (strict)
+#   3. Generate Origin Certificate in CF dashboard → save to server:
+#      /etc/ssl/cloudflare/cert.pem + /etc/ssl/cloudflare/key.pem
+#   4. WebSocket support is enabled by default in Cloudflare
+#   5. Optional: Use Cloudflare Tunnel (cloudflared) for zero-exposed-ports setup
+#   6. Page Rules: Cache *.js, *.css, *.woff2 from /assets/*
+#
+# Usage:
+#   docker compose up -d          # start
+#   docker compose logs -f        # tail logs
+#   docker compose down           # stop
+#   docker compose build --no-cache && docker compose up -d  # rebuild + deploy
+
+services:
+  daemon:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: codemobile-daemon
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persistent data (DB, sessions, hooks)
+      - codemobile-data:/home/codemobile/.codemobile
+      # Docker socket for OpenClaw container spawning
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+      - DATA_DIR=/home/codemobile/.codemobile
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://app.yourdomain.com}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  codemobile-data:

@@ -1,0 +1,41 @@
+# Dependencies (re-installed in Docker)
+node_modules
+
+# Build output (rebuilt in Docker)
+dist
+build
+.turbo
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+
+# Environment (use Docker env vars instead)
+.env
+.env.local
+.env.*.local
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea
+*.swp
+
+# VCS
+.git
+.gitignore
+
+# Test / coverage
+coverage
+**/__tests__
+
+# Logs
+*.log
+
+# Deployment scripts (not needed inside container)
+scripts
+
+# Documentation
+*.md
+LICENSE
