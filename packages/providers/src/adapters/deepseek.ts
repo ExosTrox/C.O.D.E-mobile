@@ -15,7 +15,11 @@ export class DeepSeekAdapter implements ProviderAdapter {
   }
 
   getSpawnCommand(options: SpawnOptions, apiKey?: string): SpawnConfig {
-    const args = ["--model", `deepseek/${options.model}`];
+    const args = [
+      "--model", `deepseek/${options.model}`,
+      "--no-auto-commits",
+      "--no-git",
+    ];
     if (options.args) args.push(...options.args);
 
     const env: Record<string, string> = {};
@@ -32,20 +36,22 @@ export class DeepSeekAdapter implements ProviderAdapter {
   parseAnalytics(output: string): TokenAnalytics | null {
     // Aider outputs cost lines like:
     //   Tokens: 1.2k sent, 0.5k received. Cost: $0.01
+    //   Tokens: 1200 sent, 500 received. Cost: $0.01
     const match = output.match(
       /Tokens:\s*([\d.]+)k?\s*sent,\s*([\d.]+)k?\s*received/,
     );
     const costMatch = output.match(/Cost:\s*\$([0-9.]+)/);
     if (!match) return null;
 
-    const parseTokenCount = (s: string): number => {
-      const n = parseFloat(s);
-      return s.includes("k") || n < 100 ? Math.round(n * 1000) : Math.round(n);
+    const parseTokenCount = (raw: string, full: string): number => {
+      const n = parseFloat(raw);
+      // If the full match contains 'k' suffix or value is small enough to be thousands
+      return full.match(new RegExp(`${raw.replace(".", "\\.")}k`)) ? Math.round(n * 1000) : Math.round(n);
     };
 
     return {
-      inputTokens: parseTokenCount(match[1] ?? "0"),
-      outputTokens: parseTokenCount(match[2] ?? "0"),
+      inputTokens: match[1] ? parseTokenCount(match[1], output) : 0,
+      outputTokens: match[2] ? parseTokenCount(match[2], output) : 0,
       estimatedCost: costMatch?.[1] ? parseFloat(costMatch[1]) : undefined,
     };
   }

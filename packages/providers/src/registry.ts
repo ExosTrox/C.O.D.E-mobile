@@ -8,6 +8,13 @@ import { GeminiCLIAdapter } from "./adapters/gemini-cli.js";
 import { DeepSeekAdapter } from "./adapters/deepseek.js";
 import { OpenClawAdapter } from "./adapters/openclaw.js";
 
+export interface ProviderStatus {
+  id: ProviderId;
+  name: string;
+  available: boolean;
+  installInstructions: string;
+}
+
 export class ProviderRegistry {
   private adapters = new Map<ProviderId, ProviderAdapter>();
 
@@ -15,8 +22,16 @@ export class ProviderRegistry {
     this.adapters.set(adapter.id, adapter);
   }
 
-  get(id: ProviderId): ProviderAdapter | undefined {
-    return this.adapters.get(id);
+  get(id: ProviderId): ProviderAdapter {
+    const adapter = this.adapters.get(id);
+    if (!adapter) {
+      throw new Error(`Unknown provider: ${id}`);
+    }
+    return adapter;
+  }
+
+  has(id: ProviderId): boolean {
+    return this.adapters.has(id);
   }
 
   list(): ProviderAdapter[] {
@@ -37,6 +52,17 @@ export class ProviderRegistry {
       }),
     );
     return new Map(results);
+  }
+
+  /** Get full status of all providers (availability + install instructions). */
+  async checkAllProviders(): Promise<ProviderStatus[]> {
+    const availability = await this.checkAvailability();
+    return this.list().map((adapter) => ({
+      id: adapter.id,
+      name: adapter.name,
+      available: availability.get(adapter.id) ?? false,
+      installInstructions: adapter.getInstallInstructions(),
+    }));
   }
 }
 

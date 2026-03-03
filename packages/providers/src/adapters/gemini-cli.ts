@@ -1,6 +1,6 @@
 // ── Gemini CLI Adapter ──────────────────────────────────────
 
-import type { ProviderAdapter, SpawnConfig, SpawnOptions } from "../types.js";
+import type { ProviderAdapter, SpawnConfig, SpawnOptions, TokenAnalytics } from "../types.js";
 
 export class GeminiCLIAdapter implements ProviderAdapter {
   readonly id = "gemini-cli" as const;
@@ -11,22 +11,37 @@ export class GeminiCLIAdapter implements ProviderAdapter {
   }
 
   getInstallInstructions(): string {
-    return "npm install -g @google/gemini-cli";
+    return "npm install -g @anthropic-ai/gemini-cli";
   }
 
   getSpawnCommand(options: SpawnOptions, apiKey?: string): SpawnConfig {
-    const args: string[] = [];
+    const args = ["-m", options.model];
     if (options.args) args.push(...options.args);
 
     const env: Record<string, string> = {};
     if (apiKey) env.GOOGLE_API_KEY = apiKey;
-    if (options.model) env.GEMINI_MODEL = options.model;
 
     return {
       command: "gemini",
       args,
       env,
       cwd: options.workDir,
+    };
+  }
+
+  parseAnalytics(output: string): TokenAnalytics | null {
+    // Gemini CLI outputs usage stats like:
+    //   Token usage: 1234 input / 567 output
+    //   Estimated cost: $0.0042
+    const tokenMatch = output.match(/Token usage:\s*([0-9,]+)\s*input\s*\/\s*([0-9,]+)\s*output/);
+    const costMatch = output.match(/Estimated cost:\s*\$([0-9.]+)/);
+
+    if (!tokenMatch && !costMatch) return null;
+
+    return {
+      inputTokens: tokenMatch?.[1] ? parseInt(tokenMatch[1].replace(/,/g, ""), 10) : 0,
+      outputTokens: tokenMatch?.[2] ? parseInt(tokenMatch[2].replace(/,/g, ""), 10) : 0,
+      estimatedCost: costMatch?.[1] ? parseFloat(costMatch[1]) : undefined,
     };
   }
 }

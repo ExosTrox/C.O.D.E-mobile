@@ -15,7 +15,7 @@ export class OpenAICodexAdapter implements ProviderAdapter {
   }
 
   getSpawnCommand(options: SpawnOptions, apiKey?: string): SpawnConfig {
-    const args = ["--model", options.model, "--full-auto"];
+    const args = ["--model", options.model, "--full-auto", "--quiet"];
     if (options.args) args.push(...options.args);
 
     const env: Record<string, string> = {};
@@ -32,12 +32,16 @@ export class OpenAICodexAdapter implements ProviderAdapter {
   parseAnalytics(output: string): TokenAnalytics | null {
     // Codex CLI outputs token usage like:
     //   Tokens: 1234 input, 567 output
-    const match = output.match(/Tokens:\s*([0-9,]+)\s*input,\s*([0-9,]+)\s*output/);
-    if (!match) return null;
+    //   Cost: $0.05
+    const tokenMatch = output.match(/Tokens:\s*([0-9,]+)\s*input,\s*([0-9,]+)\s*output/);
+    const costMatch = output.match(/Cost:\s*\$([0-9.]+)/);
+
+    if (!tokenMatch && !costMatch) return null;
 
     return {
-      inputTokens: parseInt(match[1]?.replace(/,/g, "") ?? "0", 10),
-      outputTokens: parseInt(match[2]?.replace(/,/g, "") ?? "0", 10),
+      inputTokens: tokenMatch?.[1] ? parseInt(tokenMatch[1].replace(/,/g, ""), 10) : 0,
+      outputTokens: tokenMatch?.[2] ? parseInt(tokenMatch[2].replace(/,/g, ""), 10) : 0,
+      estimatedCost: costMatch?.[1] ? parseFloat(costMatch[1]) : undefined,
     };
   }
 }

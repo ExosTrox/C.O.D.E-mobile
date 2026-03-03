@@ -96,6 +96,7 @@ describe("OpenAICodexAdapter", () => {
     expect(config.args).toContain("--model");
     expect(config.args).toContain("gpt-5.3-codex");
     expect(config.args).toContain("--full-auto");
+    expect(config.args).toContain("--quiet");
   });
 
   test("getSpawnCommand injects API key into env", () => {
@@ -125,9 +126,11 @@ describe("GeminiCLIAdapter", () => {
     expect(adapter.name).toBe("Gemini CLI");
   });
 
-  test("getSpawnCommand returns gemini command", () => {
+  test("getSpawnCommand returns gemini command with -m model", () => {
     const config = adapter.getSpawnCommand(defaultOptions);
     expect(config.command).toBe("gemini");
+    expect(config.args).toContain("-m");
+    expect(config.args).toContain("test-model");
     expect(config.cwd).toBe("/tmp/test-project");
   });
 
@@ -136,16 +139,11 @@ describe("GeminiCLIAdapter", () => {
     expect(config.env.GOOGLE_API_KEY).toBe("goog-key");
   });
 
-  test("getSpawnCommand sets GEMINI_MODEL env", () => {
-    const config = adapter.getSpawnCommand({
-      model: "gemini-2.5-pro",
-      workDir: "/tmp",
-    });
-    expect(config.env.GEMINI_MODEL).toBe("gemini-2.5-pro");
-  });
-
-  test("does not define parseAnalytics", () => {
-    expect("parseAnalytics" in adapter).toBe(false);
+  test("parseAnalytics parses token usage line", () => {
+    const result = adapter.parseAnalytics("Token usage: 1,234 input / 567 output");
+    expect(result).not.toBeNull();
+    expect(result?.inputTokens).toBe(1234);
+    expect(result?.outputTokens).toBe(567);
   });
 });
 
@@ -159,7 +157,7 @@ describe("DeepSeekAdapter", () => {
     expect(adapter.name).toBe("DeepSeek");
   });
 
-  test("getSpawnCommand uses aider with deepseek/ prefix", () => {
+  test("getSpawnCommand uses aider with deepseek/ prefix and safety flags", () => {
     const config = adapter.getSpawnCommand({
       model: "deepseek-chat",
       workDir: "/tmp",
@@ -167,6 +165,8 @@ describe("DeepSeekAdapter", () => {
     expect(config.command).toBe("aider");
     expect(config.args).toContain("--model");
     expect(config.args).toContain("deepseek/deepseek-chat");
+    expect(config.args).toContain("--no-auto-commits");
+    expect(config.args).toContain("--no-git");
   });
 
   test("getSpawnCommand injects DEEPSEEK_API_KEY", () => {
@@ -243,9 +243,9 @@ describe("ProviderRegistry", () => {
     expect(registry.get("claude-code")).toBe(adapter);
   });
 
-  test("get returns undefined for unknown provider", () => {
+  test("get throws for unknown provider", () => {
     const registry = new ProviderRegistry();
-    expect(registry.get("claude-code")).toBeUndefined();
+    expect(() => registry.get("claude-code")).toThrow("Unknown provider: claude-code");
   });
 
   test("list returns all registered adapters", () => {

@@ -20,3 +20,4 @@ export { OpenClawAdapter } from "./adapters/openclaw.js";
 
 // ── Registry ───────────────────────────────────────────────
 export { ProviderRegistry, createDefaultRegistry } from "./registry.js";
+export type { ProviderStatus } from "./registry.js";
