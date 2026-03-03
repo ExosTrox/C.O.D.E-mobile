@@ -1,0 +1,16 @@
+{
+  "name": "@code-mobile/daemon",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@code-mobile/core": "workspace:*",
+    "hono": "^4.7.0"
+  }
+}
