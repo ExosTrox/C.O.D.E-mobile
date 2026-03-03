@@ -63,6 +63,7 @@ export const SessionSchema = z.object({
   pid: z.number().int().positive().nullable(),
   tmuxSessionName: z.string(),
   workDir: z.string(),
+  conversationId: z.string().nullable(),
 });
 export type SessionInferred = z.infer<typeof SessionSchema>;
 
@@ -72,6 +73,7 @@ export const SessionCreateOptionsSchema = z.object({
   model: z.string().optional(),
   workDir: z.string().optional(),
   envVars: z.record(z.string(), z.string()).optional(),
+  conversationId: z.string().optional(),
 });
 export type SessionCreateOptionsInferred = z.infer<
   typeof SessionCreateOptionsSchema

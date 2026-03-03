@@ -7,6 +7,14 @@ export interface SpawnOptions {
   model: string;
   workDir: string;
   args?: string[];
+  /** Data directory for hooks and session state. */
+  dataDir?: string;
+  /** Session ID for hook callbacks. */
+  sessionId?: string;
+  /** Daemon internal URL for hook callbacks. */
+  daemonUrl?: string;
+  /** Conversation ID for session resume. */
+  conversationId?: string;
 }
 
 /** Fully-resolved spawn configuration for tmux. */

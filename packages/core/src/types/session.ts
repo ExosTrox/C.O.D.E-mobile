@@ -20,6 +20,7 @@ export interface Session {
   pid: number | null;
   tmuxSessionName: string;
   workDir: string;
+  conversationId: string | null;
 }
 
 export interface SessionCreateOptions {
@@ -28,6 +29,8 @@ export interface SessionCreateOptions {
   model?: string;
   workDir?: string;
   envVars?: Record<string, string>;
+  /** Conversation ID for session resume (Claude Code --resume). */
+  conversationId?: string;
 }
 
 export type SessionEvent =

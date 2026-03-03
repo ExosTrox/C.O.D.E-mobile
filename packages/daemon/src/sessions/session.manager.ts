@@ -21,6 +21,7 @@ interface SessionRow {
   tmux_name: string;
   work_dir: string;
   pid: number | null;
+  conversation_id: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -103,9 +104,9 @@ export class SessionManager {
 
     // Insert into DB
     this.db.run(
-      `INSERT INTO sessions (id, name, provider_id, model, status, tmux_name, work_dir)
-       VALUES (?, ?, ?, ?, 'running', ?, ?)`,
-      [id, name, options.providerId, model, tmuxName, workDir],
+      `INSERT INTO sessions (id, name, provider_id, model, status, tmux_name, work_dir, conversation_id)
+       VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`,
+      [id, name, options.providerId, model, tmuxName, workDir, options.conversationId ?? null],
     );
 
     const row = this.db
@@ -270,6 +271,7 @@ export class SessionManager {
       pid: row.pid,
       tmuxSessionName: row.tmux_name,
       workDir: row.work_dir,
+      conversationId: row.conversation_id,
     };
   }
 

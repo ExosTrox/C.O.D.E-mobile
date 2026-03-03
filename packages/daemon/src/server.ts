@@ -15,6 +15,10 @@ import { TmuxService } from "./sessions/tmux.service.js";
 import { SessionManager } from "./sessions/session.manager.js";
 import { createSessionRoutes } from "./sessions/session.routes.js";
 import { setupSessionWebSocket, stopKeepalive } from "./sessions/session.ws.js";
+import { PermissionService } from "./permissions/permissions.service.js";
+import { createPermissionRoutes } from "./permissions/permissions.routes.js";
+import { createHookRoutes } from "./hooks/hooks.routes.js";
+import { AnalyticsService } from "./analytics/analytics.service.js";
 
 // Hono env bindings for typed context
 interface AppEnv {
@@ -29,6 +33,7 @@ const PUBLIC_PATHS = [
   "/health",
   "/api/v1/auth/",
   "/api/v1/ws",
+  "/internal/hooks/",
   "/assets/",
   "/manifest.json",
   "/sw.js",
@@ -56,6 +61,12 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   if (authService.isFirstRun()) {
     authService.generateBootstrapToken();
   }
+
+  // ── Initialize permission service ─────────────────────────
+  const permissionService = new PermissionService(database.db);
+
+  // ── Initialize analytics service ────────────────────────
+  const analyticsService = new AnalyticsService(database.db, new Map());
 
   // ── Initialize session services ────────────────────────────
   const tmuxService = new TmuxService();
@@ -150,6 +161,12 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   // Session routes (real implementation)
   app.route("/api/v1/sessions", createSessionRoutes(sessionManager));
 
+  // Permission routes (mounted under sessions)
+  app.route("/api/v1/sessions", createPermissionRoutes(permissionService));
+
+  // Internal hook routes (unauthenticated — localhost only)
+  app.route("/internal/hooks", createHookRoutes(permissionService));
+
   // WebSocket (WS auth handled internally via ?token= param)
   setupSessionWebSocket(app, authService, sessionManager);
 
@@ -186,6 +203,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
 
   // Cleanup function for graceful shutdown
   function cleanup() {
+    analyticsService.stopAll();
     sessionManager.stopAll();
     stopKeepalive();
   }

@@ -53,6 +53,7 @@ export function useCreateSession() {
           pid: null,
           tmuxSessionName: "",
           workDir: options.workDir ?? "~/projects",
+          conversationId: null,
         };
         return [placeholder, ...old];
       });
