@@ -1,0 +1,71 @@
+import { Database } from "bun:sqlite";
+import { resolve, join } from "path";
+import { readdirSync, readFileSync } from "fs";
+
+export class AppDatabase {
+  readonly db: Database;
+  private readonly migrationsDir: string;
+
+  constructor(dataDir: string) {
+    const dbPath = resolve(dataDir, "codemobile.db");
+    this.db = new Database(dbPath, { create: true, strict: true });
+
+    // Enable WAL mode for concurrent reads
+    this.db.run("PRAGMA journal_mode = WAL");
+    this.db.run("PRAGMA foreign_keys = ON");
+    this.db.run("PRAGMA busy_timeout = 5000");
+
+    // Migrations are bundled relative to this source file
+    this.migrationsDir = join(import.meta.dir, "migrations");
+
+    this.ensureMigrationsTable();
+  }
+
+  private ensureMigrationsTable(): void {
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS _migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        applied_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `);
+  }
+
+  runMigrations(): void {
+    const files = readdirSync(this.migrationsDir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
+
+    const applied = new Set(
+      this.db
+        .query<{ name: string }, []>("SELECT name FROM _migrations")
+        .all()
+        .map((r) => r.name),
+    );
+
+    for (const file of files) {
+      if (applied.has(file)) continue;
+
+      const sql = readFileSync(join(this.migrationsDir, file), "utf-8");
+      console.log(`  Running migration: ${file}`);
+
+      this.db.transaction(() => {
+        this.db.run(sql);
+        this.db.run("INSERT INTO _migrations (name) VALUES (?)", [file]);
+      })();
+    }
+  }
+
+  getSessionCount(): number {
+    const row = this.db
+      .query<{ count: number }, []>(
+        "SELECT COUNT(*) as count FROM sessions WHERE status IN ('starting', 'running')",
+      )
+      .get();
+    return row?.count ?? 0;
+  }
+
+  close(): void {
+    this.db.close();
+  }
+}

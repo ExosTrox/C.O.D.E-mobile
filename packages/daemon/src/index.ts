@@ -1,22 +1,52 @@
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { logger } from "hono/logger";
-import { DEFAULT_PORT } from "@code-mobile/core";
+import { mkdirSync } from "fs";
+import { loadConfig } from "./config.js";
+import { AppDatabase } from "./db/index.js";
+import { createApp } from "./server.js";
 
-const app = new Hono();
+// ── Load configuration ───────────────────────────────────────
+const config = loadConfig();
 
-app.use("*", logger());
-app.use("*", cors());
+// ── Ensure data directory exists ─────────────────────────────
+mkdirSync(config.dataDir, { recursive: true });
 
-app.get("/health", (c) =>
-  c.json({ status: "ok", version: "0.0.1", uptime: process.uptime() }),
-);
+// ── Initialize database ──────────────────────────────────────
+console.log(`[daemon] Initializing database at ${config.dataDir}/codemobile.db`);
+const database = new AppDatabase(config.dataDir);
+database.runMigrations();
 
-app.get("/", (c) => c.json({ message: "CODE Mobile Daemon" }));
+// ── Create Hono app ──────────────────────────────────────────
+const app = createApp(config, database);
 
-console.log(`CODE Mobile Daemon starting on port ${DEFAULT_PORT}...`);
-
-export default {
-  port: DEFAULT_PORT,
+// ── Start HTTP server ────────────────────────────────────────
+const server = Bun.serve({
+  port: config.port,
+  hostname: config.host,
   fetch: app.fetch,
-};
+});
+
+console.log(`
+  ┌─────────────────────────────────────────────┐
+  │  CODE Mobile Daemon v${config.version}                │
+  │                                             │
+  │  http://${server.hostname}:${server.port}                   │
+  │  Data:  ${config.dataDir}  │
+  │  Env:   ${config.nodeEnv}                        │
+  └─────────────────────────────────────────────┘
+`);
+
+// ── Graceful shutdown ────────────────────────────────────────
+async function shutdown(signal: string) {
+  console.log(`\n[daemon] Received ${signal}, shutting down...`);
+
+  // Stop accepting new connections
+  server.stop();
+
+  // Close the database
+  database.close();
+
+  console.log("[daemon] Shutdown complete.");
+  process.exit(0);
+}
+
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));

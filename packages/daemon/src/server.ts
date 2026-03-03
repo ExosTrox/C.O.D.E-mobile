@@ -1,0 +1,173 @@
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { requestId } from "hono/request-id";
+import { serveStatic } from "hono/bun";
+import { HTTPException } from "hono/http-exception";
+import type { ApiResponse } from "@code-mobile/core";
+import type { Config } from "./config.js";
+import type { AppDatabase } from "./db/index.js";
+
+// Hono env bindings for typed context
+interface AppEnv {
+  Variables: {
+    requestId: string;
+  };
+}
+
+// Paths that do not require authentication
+const PUBLIC_PATHS = [
+  "/health",
+  "/api/v1/auth/",
+  "/assets/",
+  "/manifest.json",
+  "/sw.js",
+];
+
+function isPublicPath(path: string): boolean {
+  if (path === "/" || path === "/index.html") return true;
+  return PUBLIC_PATHS.some((p) => path.startsWith(p));
+}
+
+export function createApp(config: Config, database: AppDatabase): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
+
+  // ── 1. Request ID ──────────────────────────────────────────
+  app.use("*", requestId());
+
+  // ── 2. Logger ──────────────────────────────────────────────
+  app.use("*", async (c, next) => {
+    const start = performance.now();
+    const method = c.req.method;
+    const path = c.req.path;
+
+    await next();
+
+    const duration = (performance.now() - start).toFixed(1);
+    const status = c.res.status;
+    console.log(`  ${method} ${path} ${status} ${duration}ms`);
+  });
+
+  // ── 3. CORS ────────────────────────────────────────────────
+  app.use(
+    "*",
+    cors({
+      origin: config.corsOrigins,
+      credentials: true,
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+      allowHeaders: ["Content-Type", "Authorization"],
+      maxAge: 86400,
+    }),
+  );
+
+  // ── 4. Error handler ──────────────────────────────────────
+  app.onError((err, c) => {
+    const requestId = c.get("requestId");
+    console.error(`  [ERROR] ${requestId}: ${err.message}`);
+
+    if (err instanceof HTTPException) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: `HTTP_${err.status}`, message: err.message },
+      };
+      return c.json(body, err.status);
+    }
+
+    const body: ApiResponse<never> = {
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Internal server error" },
+    };
+    return c.json(body, 500);
+  });
+
+  // ── 5. Auth middleware (skip public paths) ─────────────────
+  app.use("/api/*", async (c, next) => {
+    if (isPublicPath(c.req.path)) {
+      return next();
+    }
+
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "Missing or invalid token" },
+      };
+      return c.json(body, 401);
+    }
+
+    // Token verification will be implemented in the auth module.
+    // For now, pass through if a bearer token is present.
+    await next();
+  });
+
+  // ── Routes ─────────────────────────────────────────────────
+
+  // Health check (public)
+  app.get("/health", (c) => {
+    const body: ApiResponse<{
+      status: string;
+      version: string;
+      uptime: number;
+      sessions: number;
+    }> = {
+      success: true,
+      data: {
+        status: "ok",
+        version: config.version,
+        uptime: process.uptime(),
+        sessions: database.getSessionCount(),
+      },
+    };
+    return c.json(body);
+  });
+
+  // ── Route groups (stubs — will be implemented in later prompts) ──
+
+  // Auth routes
+  app.all("/api/v1/auth/*", (c) => {
+    return c.json(
+      { success: false, error: { code: "NOT_IMPLEMENTED", message: "Auth routes coming soon" } },
+      501,
+    );
+  });
+
+  // Session routes
+  app.all("/api/v1/sessions/*", (c) => {
+    return c.json(
+      { success: false, error: { code: "NOT_IMPLEMENTED", message: "Session routes coming soon" } },
+      501,
+    );
+  });
+
+  // Provider routes
+  app.all("/api/v1/providers/*", (c) => {
+    return c.json(
+      {
+        success: false,
+        error: { code: "NOT_IMPLEMENTED", message: "Provider routes coming soon" },
+      },
+      501,
+    );
+  });
+
+  // API key routes
+  app.all("/api/v1/api-keys/*", (c) => {
+    return c.json(
+      {
+        success: false,
+        error: { code: "NOT_IMPLEMENTED", message: "API key routes coming soon" },
+      },
+      501,
+    );
+  });
+
+  // ── Static file serving (PWA) ──────────────────────────────
+  // Serve built web assets from packages/web/dist/
+  const webDistPath = new URL("../../web/dist", import.meta.url).pathname;
+
+  app.use("/*", serveStatic({ root: webDistPath }));
+
+  // SPA fallback: serve index.html for any unmatched route
+  app.get("*", serveStatic({ path: `${webDistPath}/index.html` }));
+
+  return app;
+}
