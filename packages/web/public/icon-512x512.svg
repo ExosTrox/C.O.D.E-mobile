@@ -1,4 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" rx="64" fill="#1a1b26"/>
-  <text x="256" y="307" text-anchor="middle" font-family="monospace" font-size="192" font-weight="bold" fill="#7aa2f7">&gt;_</text>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1b26"/>
+      <stop offset="100%" stop-color="#24283b"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7aa2f7" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#7aa2f7" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="113" fill="url(#bg)"/>
+  <!-- Subtle top glow -->
+  <rect width="512" height="256" rx="113" fill="url(#glow)"/>
+  <!-- Window dots -->
+  <circle cx="77" cy="77" r="8" fill="#f7768e" opacity="0.8"/>
+  <circle cx="108" cy="77" r="8" fill="#e0af68" opacity="0.8"/>
+  <circle cx="139" cy="77" r="8" fill="#9ece6a" opacity="0.8"/>
+  <!-- Terminal prompt > -->
+  <text x="256" y="297" text-anchor="middle" font-family="'SF Mono','Fira Code','Cascadia Code',monospace" font-size="154" font-weight="700" fill="#7aa2f7">&gt;_</text>
+  <!-- Blinking cursor -->
+  <rect x="297" y="195" width="41" height="143" rx="6" fill="#7aa2f7" opacity="0.6"/>
+  <!-- Bottom accent line -->
+  <rect x="102" y="420" width="307" height="10" rx="5" fill="#7aa2f7" opacity="0.3"/>
 </svg>

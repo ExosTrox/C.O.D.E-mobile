@@ -184,6 +184,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
       version: string;
       uptime: number;
       sessions: number;
+      isSetupComplete: boolean;
     }> = {
       success: true,
       data: {
@@ -191,6 +192,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
         version: config.version,
         uptime: process.uptime(),
         sessions: database.getSessionCount(),
+        isSetupComplete: !authService.isFirstRun(),
       },
     };
     return c.json(body);
