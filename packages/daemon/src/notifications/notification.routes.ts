@@ -5,10 +5,18 @@
 
 import { Hono } from "hono";
 import type { ApiResponse } from "@code-mobile/core";
+import type { DecodedToken } from "../auth/auth.service.js";
 import type { NotificationService } from "./notification.service.js";
 
+interface NotifEnv {
+  Variables: {
+    requestId: string;
+    user: DecodedToken;
+  };
+}
+
 export function createNotificationRoutes(notificationService: NotificationService) {
-  const router = new Hono();
+  const router = new Hono<NotifEnv>();
 
   // GET /vapid-key — public endpoint for VAPID key
   router.get("/vapid-key", (c) => {

@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
-import { serveStatic } from "hono/bun";
 import { HTTPException } from "hono/http-exception";
 import type { ApiResponse } from "@code-mobile/core";
 import type { Config } from "./config.js";
@@ -207,12 +206,39 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
 
   // ── Static file serving (PWA) ──────────────────────────────
   // Serve built web assets from packages/web/dist/
-  const webDistPath = new URL("../../web/dist", import.meta.url).pathname;
+  // import.meta.dir = packages/daemon/src/ → ../../web/dist
+  const webDistPath = `${import.meta.dir}/../../web/dist`;
 
-  app.use("/*", serveStatic({ root: webDistPath }));
+  app.get("/*", async (c, next) => {
+    const reqPath = c.req.path;
 
-  // SPA fallback: serve index.html for any unmatched route
-  app.get("*", serveStatic({ path: `${webDistPath}/index.html` }));
+    // Try serving the exact file
+    const filePath = `${webDistPath}${reqPath}`;
+    const file = Bun.file(filePath);
+    if (await file.exists() && file.size > 0) {
+      return new Response(file);
+    }
+
+    // Try default document for directory requests
+    if (reqPath.endsWith("/")) {
+      const indexFile = Bun.file(`${filePath}index.html`);
+      if (await indexFile.exists()) {
+        return new Response(indexFile, {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
+      }
+    }
+
+    // SPA fallback: serve index.html for non-API/non-file routes
+    const indexHtml = Bun.file(`${webDistPath}/index.html`);
+    if (await indexHtml.exists()) {
+      return new Response(indexHtml, {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
+    return c.text("Not Found - web assets not built. Run: bun run build:web", 404);
+  });
 
   // Cleanup function for graceful shutdown
   function cleanup() {

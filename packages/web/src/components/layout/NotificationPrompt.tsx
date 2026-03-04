@@ -36,13 +36,10 @@ export function NotificationPrompt() {
       if (permission === "granted") {
         // Subscribe to push
         const registration = await navigator.serviceWorker.ready;
+        const vapidKey = await fetchVapidKey(serverUrl);
         const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(
-            // VAPID public key — the daemon generates this on first run
-            // For now, we try to fetch it from the server
-            await fetchVapidKey(serverUrl),
-          ),
+          applicationServerKey: vapidKey || undefined,
         });
 
         // Send subscription to daemon
@@ -117,17 +114,6 @@ export function NotificationPrompt() {
 }
 
 // ── Helpers ─────────────────────────────────────────────────
-
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
 
 async function fetchVapidKey(serverUrl: string): Promise<string> {
   try {
