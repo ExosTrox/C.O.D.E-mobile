@@ -21,8 +21,6 @@ interface ProviderDetailProps {
   onClose: () => void;
 }
 
-type InstallStatus = "installed" | "not-installed" | "unknown";
-
 // ── Provider colors ────────────────────────────────────────
 
 const COLORS: Record<string, string> = {
@@ -63,7 +61,6 @@ export function ProviderDetail({ provider, apiKey, open, onClose }: ProviderDeta
   const validateApiKey = useValidateApiKey();
 
   const color = COLORS[provider.id] ?? "#7aa2f7";
-  const _installStatus: InstallStatus = "unknown"; // TODO: fetch from provider status endpoint
 
   const handleSaveKey = async () => {
     if (!newKey.trim()) return;

@@ -19,6 +19,7 @@ import { Card } from "../components/ui/Card";
 import { Spinner } from "../components/ui/Spinner";
 import { ProviderDetail } from "../components/providers/ProviderDetail";
 import { useApiKeys } from "../hooks/use-api-keys";
+import { useProviders } from "../hooks/use-providers";
 import { cn } from "../lib/cn";
 
 // ── Provider colors ────────────────────────────────────────
@@ -40,16 +41,26 @@ type ProviderStatus = "ready" | "needs-key" | "not-installed" | "error";
 function getProviderStatus(
   provider: ProviderConfig,
   hasApiKey: boolean,
+  serverStatus?: string,
 ): { status: ProviderStatus; badge: { variant: "success" | "warning" | "muted" | "error"; label: string } } {
-  // Providers that don't require API keys are always "ready" (install status TBD)
+  // Use server-side status if available
+  if (serverStatus === "not_installed") {
+    return { status: "not-installed", badge: { variant: "muted", label: "Not Installed" } };
+  }
+  if (serverStatus === "needs_key") {
+    return { status: "needs-key", badge: { variant: "warning", label: "Needs API Key" } };
+  }
+  if (serverStatus === "ready") {
+    return { status: "ready", badge: { variant: "success", label: "Ready" } };
+  }
+
+  // Fallback to local logic
   if (!provider.requiresApiKey) {
     return { status: "ready", badge: { variant: "success", label: "Ready" } };
   }
-
   if (hasApiKey) {
     return { status: "ready", badge: { variant: "success", label: "Ready" } };
   }
-
   return { status: "needs-key", badge: { variant: "warning", label: "Needs API Key" } };
 }
 
@@ -71,16 +82,18 @@ function ProviderIcon({ providerId, className }: { providerId: string; className
 function ProviderCard({
   provider,
   hasApiKey,
+  serverStatus,
   index,
   onClick,
 }: {
   provider: ProviderConfig;
   hasApiKey: boolean;
+  serverStatus?: string;
   index: number;
   onClick: () => void;
 }) {
   const colors = PROVIDER_COLORS[provider.id] ?? DEFAULT_COLOR;
-  const { badge } = getProviderStatus(provider, hasApiKey);
+  const { badge } = getProviderStatus(provider, hasApiKey, serverStatus);
 
   return (
     <motion.div
@@ -119,10 +132,19 @@ function ProviderCard({
 
 export function ProvidersPage() {
   const { data: apiKeys, isLoading: keysLoading } = useApiKeys();
+  const { data: serverProviders } = useProviders();
   const [selectedProvider, setSelectedProvider] = useState<ProviderConfig | null>(null);
 
   const providerList = Object.values(PROVIDERS);
   const apiKeyMap = new Set((apiKeys ?? []).map((k) => k.providerId));
+
+  // Map server provider status by ID
+  const serverStatusMap = new Map<string, string>();
+  if (serverProviders) {
+    for (const sp of serverProviders as Array<ProviderConfig & { status: string }>) {
+      serverStatusMap.set(sp.id, sp.status);
+    }
+  }
 
   const selectedApiKey = selectedProvider
     ? (apiKeys ?? []).find((k) => k.providerId === selectedProvider.id) ?? null
@@ -152,6 +174,7 @@ export function ProvidersPage() {
                 key={provider.id}
                 provider={provider}
                 hasApiKey={apiKeyMap.has(provider.id)}
+                serverStatus={serverStatusMap.get(provider.id)}
                 index={i}
                 onClick={() => setSelectedProvider(provider)}
               />
