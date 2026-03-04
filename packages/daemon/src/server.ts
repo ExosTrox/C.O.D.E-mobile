@@ -21,6 +21,10 @@ import { AnalyticsService } from "./analytics/analytics.service.js";
 import { createAnalyticsRoutes } from "./analytics/analytics.routes.js";
 import { NotificationService } from "./notifications/notification.service.js";
 import { createNotificationRoutes } from "./notifications/notification.routes.js";
+import { ApiKeyService } from "./apikeys/apikey.service.js";
+import { createApiKeyRoutes } from "./apikeys/apikey.routes.js";
+import { createDefaultRegistry } from "@code-mobile/providers";
+import { createProviderRoutes } from "./providers/provider.routes.js";
 
 // Hono env bindings for typed context
 interface AppEnv {
@@ -73,6 +77,12 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
 
   // ── Initialize notification service ──────────────────────
   const notificationService = new NotificationService(database.db);
+
+  // ── Initialize API key service ─────────────────────────
+  const apiKeyService = new ApiKeyService(database.db, config.dataDir);
+
+  // ── Initialize provider registry ───────────────────────
+  const providerRegistry = createDefaultRegistry();
 
   // ── Initialize session services ────────────────────────────
   const tmuxService = new TmuxService();
@@ -183,26 +193,10 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   setupSessionWebSocket(app, authService, sessionManager);
 
   // Provider routes
-  app.all("/api/v1/providers/*", (c) => {
-    return c.json(
-      {
-        success: false,
-        error: { code: "NOT_IMPLEMENTED", message: "Provider routes coming soon" },
-      },
-      501,
-    );
-  });
+  app.route("/api/v1/providers", createProviderRoutes(providerRegistry, apiKeyService));
 
   // API key routes
-  app.all("/api/v1/api-keys/*", (c) => {
-    return c.json(
-      {
-        success: false,
-        error: { code: "NOT_IMPLEMENTED", message: "API key routes coming soon" },
-      },
-      501,
-    );
-  });
+  app.route("/api/v1/api-keys", createApiKeyRoutes(apiKeyService));
 
   // ── Static file serving (PWA) ──────────────────────────────
   // Serve built web assets from packages/web/dist/

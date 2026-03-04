@@ -35,6 +35,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@code-mobile/core": "workspace:*",
+        "@code-mobile/providers": "workspace:*",
         "hono": "^4.7.0",
         "jose": "^6.1.3",
         "otpauth": "^9.5.0",
