@@ -232,21 +232,56 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   // import.meta.dir = packages/daemon/src/ → ../../web/dist
   const webDistPath = `${import.meta.dir}/../../web/dist`;
 
-  app.get("/*", async (c, next) => {
+  // MIME type map for static assets
+  const MIME_TYPES: Record<string, string> = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".webmanifest": "application/manifest+json",
+    ".webp": "image/webp",
+    ".txt": "text/plain; charset=utf-8",
+    ".xml": "application/xml",
+  };
+
+  function getMimeType(path: string): string {
+    const ext = path.slice(path.lastIndexOf(".")).toLowerCase();
+    return MIME_TYPES[ext] ?? "application/octet-stream";
+  }
+
+  app.get("/*", async (c) => {
     const reqPath = c.req.path;
 
     // Try serving the exact file
     const filePath = `${webDistPath}${reqPath}`;
     const file = Bun.file(filePath);
     if (await file.exists() && file.size > 0) {
-      return new Response(file);
+      return new Response(file.stream(), {
+        headers: {
+          "Content-Type": getMimeType(reqPath),
+          "Content-Length": String(file.size),
+          "Cache-Control": reqPath.startsWith("/assets/")
+            ? "public, max-age=31536000, immutable"
+            : "public, max-age=0, must-revalidate",
+        },
+      });
     }
 
     // Try default document for directory requests
     if (reqPath.endsWith("/")) {
       const indexFile = Bun.file(`${filePath}index.html`);
       if (await indexFile.exists()) {
-        return new Response(indexFile, {
+        return new Response(indexFile.stream(), {
           headers: { "Content-Type": "text/html; charset=utf-8" },
         });
       }
@@ -255,7 +290,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
     // SPA fallback: serve index.html for non-API/non-file routes
     const indexHtml = Bun.file(`${webDistPath}/index.html`);
     if (await indexHtml.exists()) {
-      return new Response(indexHtml, {
+      return new Response(indexHtml.stream(), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
