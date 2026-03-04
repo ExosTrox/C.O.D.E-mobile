@@ -142,7 +142,31 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
     return c.json(body, 500);
   });
 
-  // ── 5. Auth middleware (skip public paths) ─────────────────
+  // ── 5. Rate limiting for auth endpoints ────────────────────
+  const authAttempts = new Map<string, { count: number; resetAt: number }>();
+  app.use("/api/v1/auth/login", async (c, next) => {
+    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const now = Date.now();
+    const entry = authAttempts.get(ip);
+
+    if (entry && entry.resetAt > now && entry.count >= 10) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "RATE_LIMITED", message: "Too many login attempts. Try again later." },
+      };
+      return c.json(body, 429);
+    }
+
+    if (!entry || entry.resetAt <= now) {
+      authAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    } else {
+      entry.count++;
+    }
+
+    return next();
+  });
+
+  // ── 6. Auth middleware (skip public paths) ─────────────────
   const authMiddleware = createAuthMiddleware(authService);
   app.use("/api/*", async (c, next) => {
     if (isPublicPath(c.req.path)) {

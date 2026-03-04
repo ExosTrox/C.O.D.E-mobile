@@ -156,6 +156,13 @@ export class AuthService {
     );
   }
 
+  updatePassword(userId: string, passwordHash: string): void {
+    this.db.run("UPDATE users SET password_hash = ? WHERE id = ?", [
+      passwordHash,
+      userId,
+    ]);
+  }
+
   setTotpSecret(userId: string, secret: string): void {
     this.db.run("UPDATE users SET totp_secret = ? WHERE id = ?", [
       secret,

@@ -226,6 +226,30 @@ export class ApiClient {
     );
   }
 
+  // ── Account methods ────────────────────────────────────
+
+  changePassword(currentPassword: string, newPassword: string) {
+    return this.request<{ message: string }>(
+      "POST",
+      "/auth/change-password",
+      { currentPassword, newPassword },
+    );
+  }
+
+  listDevices() {
+    return this.request<{ id: string; name: string; lastSeen: number }[]>(
+      "GET",
+      "/auth/devices",
+    );
+  }
+
+  revokeDevice(deviceId: string) {
+    return this.request<{ message: string }>(
+      "DELETE",
+      `/auth/devices/${deviceId}`,
+    );
+  }
+
   // ── Session methods ─────────────────────────────────────
 
   createSession(options: SessionCreateOptions) {

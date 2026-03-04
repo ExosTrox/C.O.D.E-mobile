@@ -285,6 +285,58 @@ export function createAuthRoutes(
     return c.json(body);
   });
 
+  // ── POST /change-password ─────────────────────────────────
+  auth.post("/change-password", async (c) => {
+    const user = c.get("user");
+    const { currentPassword, newPassword } = await c.req.json<{
+      currentPassword: string;
+      newPassword: string;
+    }>();
+
+    if (!currentPassword || !newPassword) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "currentPassword and newPassword are required" },
+      };
+      return c.json(body, 400);
+    }
+
+    if (newPassword.length < 8) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "New password must be at least 8 characters" },
+      };
+      return c.json(body, 400);
+    }
+
+    const dbUser = authService.getUserById(user.sub);
+    if (!dbUser) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "NOT_FOUND", message: "User not found" },
+      };
+      return c.json(body, 404);
+    }
+
+    const valid = await authService.verifyPassword(currentPassword, dbUser.password_hash);
+    if (!valid) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "INVALID_CREDENTIALS", message: "Current password is incorrect" },
+      };
+      return c.json(body, 401);
+    }
+
+    const newHash = await authService.hashPassword(newPassword);
+    authService.updatePassword(user.sub, newHash);
+
+    const body: ApiResponse<{ message: string }> = {
+      success: true,
+      data: { message: "Password changed successfully" },
+    };
+    return c.json(body);
+  });
+
   // ── DELETE /devices/:id ───────────────────────────────────
   auth.delete("/devices/:id", (c) => {
     const user = c.get("user");
