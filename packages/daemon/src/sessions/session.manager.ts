@@ -9,6 +9,9 @@ import { PROVIDERS } from "@code-mobile/core";
 import type { TmuxService } from "./tmux.service.js";
 import { TmuxError } from "./tmux.service.js";
 import { SessionStreamer } from "./session.streamer.js";
+import type { ProviderRegistry } from "@code-mobile/providers";
+import type { ApiKeyService } from "../apikeys/apikey.service.js";
+import type { AnalyticsService } from "../analytics/analytics.service.js";
 
 // ── DB row shape ────────────────────────────────────────────
 
@@ -30,12 +33,22 @@ interface SessionRow {
 
 export class SessionManager {
   private streamers = new Map<string, SessionStreamer>();
+  private providerRegistry?: ProviderRegistry;
+  private apiKeyService?: ApiKeyService;
+  private analyticsService?: AnalyticsService;
 
   constructor(
     private readonly db: Database,
     private readonly tmux: TmuxService,
     private readonly dataDir: string,
   ) {}
+
+  /** Wire in optional services for provider adapter resolution and analytics. */
+  setServices(registry: ProviderRegistry, apiKeys: ApiKeyService, analytics: AnalyticsService): void {
+    this.providerRegistry = registry;
+    this.apiKeyService = apiKeys;
+    this.analyticsService = analytics;
+  }
 
   // ── Startup reconciliation ────────────────────────────────
 
@@ -75,18 +88,41 @@ export class SessionManager {
       throw new Error(`Unknown provider: ${options.providerId}`);
     }
     const model = options.model ?? provider.defaultModel;
-    const { command, args } = this.resolveSpawnCommand(options.providerId, model);
 
     // Work directory
     const workDir = options.workDir ?? process.cwd();
+
+    // Use provider adapter if available, otherwise fall back to simple resolution
+    let command: string;
+    let args: string[];
+    let adapterEnv: Record<string, string> = {};
+
+    if (this.providerRegistry?.has(options.providerId)) {
+      const adapter = this.providerRegistry.get(options.providerId);
+      const apiKey = this.apiKeyService
+        ? await this.apiKeyService.getDecrypted(options.providerId)
+        : null;
+      const spawnConfig = adapter.getSpawnCommand(
+        { model, workDir, dataDir: this.dataDir, sessionId: id, conversationId: options.conversationId ?? undefined },
+        apiKey ?? undefined,
+      );
+      command = spawnConfig.command;
+      args = spawnConfig.args;
+      adapterEnv = spawnConfig.env;
+    } else {
+      const resolved = this.resolveSpawnCommand(options.providerId, model);
+      command = resolved.command;
+      args = resolved.args;
+    }
 
     // Ensure session output directory
     const sessionDir = join(this.dataDir, "sessions", id);
     mkdirSync(sessionDir, { recursive: true });
     const outputPath = join(sessionDir, "output.log");
 
-    // Build env vars
+    // Build env vars (adapter env + user overrides)
     const env: Record<string, string> = {
+      ...adapterEnv,
       ...options.envVars,
       TERM: "xterm-256color",
     };
@@ -113,6 +149,14 @@ export class SessionManager {
       .query<SessionRow, [string]>("SELECT * FROM sessions WHERE id = ?")
       .get(id);
     if (!row) throw new Error("Failed to read newly created session");
+
+    // Record analytics event
+    this.analyticsService?.recordEvent(id, "session_start", { model, workDir }, options.providerId);
+
+    // Start analytics file watching if adapter supports it
+    const outputPath2 = join(this.dataDir, "sessions", id, "output.log");
+    this.analyticsService?.startWatching(id, options.providerId, outputPath2);
+
     return this.rowToSession(row);
   }
 
@@ -154,6 +198,10 @@ export class SessionManager {
       streamer.stop();
       this.streamers.delete(id);
     }
+
+    // Stop analytics watching
+    this.analyticsService?.stopWatching(id);
+    this.analyticsService?.recordEvent(id, "session_stop", undefined, row.provider_id);
 
     // Update DB (may fail if DB was closed during shutdown)
     try {

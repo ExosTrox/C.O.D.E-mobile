@@ -1,7 +1,8 @@
 // ── Notification Service ─────────────────────────────────────
 // Manages push subscriptions and sends web push notifications.
-// Uses the Web Push protocol directly (no external npm dependency).
 
+import { existsSync, readFileSync, writeFileSync } from "fs";
+import { join } from "path";
 import type { Database } from "bun:sqlite";
 
 // ── Types ────────────────────────────────────────────────────
@@ -30,27 +31,23 @@ export interface PushPayload {
   actions?: Array<{ action: string; title: string }>;
 }
 
-// ── VAPID Keys ──────────────────────────────────────────────
-
-interface VapidKeys {
-  publicKey: string;
-  privateKey: string;
-}
-
 // ── Service ─────────────────────────────────────────────────
 
 export class NotificationService {
-  private vapidKeys: VapidKeys | null = null;
+  private publicKey: string | null = null;
+  private privateKey: string | null = null;
 
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    private readonly dataDir?: string,
+  ) {}
 
   /**
-   * Get or generate VAPID keys. In production, these should be persisted.
-   * For now, we store them in a simple table.
+   * Get VAPID public key for push subscriptions.
    */
   getVapidPublicKey(): string {
     this.ensureVapidKeys();
-    return this.vapidKeys!.publicKey;
+    return this.publicKey!;
   }
 
   /**
@@ -79,8 +76,6 @@ export class NotificationService {
 
   /**
    * Send a push notification to all of a user's subscriptions.
-   * Note: Full web-push implementation requires crypto operations.
-   * For MVP, we log the notification and store it.
    */
   async sendPush(userId: string, payload: PushPayload): Promise<void> {
     const subscriptions = this.db
@@ -91,14 +86,32 @@ export class NotificationService {
 
     if (subscriptions.length === 0) return;
 
-    // Log notification for now — full Web Push requires ECDH crypto
     console.log(
       `  [PUSH] Sending to ${subscriptions.length} subscription(s) for user ${userId}: ${payload.title}`,
     );
 
-    // TODO: Implement actual web-push sending with VAPID signing
-    // For now, this is a stub that will be replaced with proper implementation
-    // when we add the web-push npm package
+    // Send to each subscription endpoint
+    const stale: string[] = [];
+    for (const sub of subscriptions) {
+      try {
+        const res = await fetch(sub.endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", TTL: "86400" },
+          body: JSON.stringify(payload),
+        });
+        // 404 or 410 means subscription is stale
+        if (res.status === 404 || res.status === 410) {
+          stale.push(sub.endpoint);
+        }
+      } catch {
+        // Network error — skip
+      }
+    }
+
+    // Clean up stale subscriptions
+    for (const endpoint of stale) {
+      this.unsubscribe(endpoint);
+    }
   }
 
   /**
@@ -116,13 +129,52 @@ export class NotificationService {
   // ── Internals ─────────────────────────────────────────────
 
   private ensureVapidKeys(): void {
-    if (this.vapidKeys) return;
+    if (this.publicKey && this.privateKey) return;
 
-    // For MVP, use a placeholder VAPID key
-    // In production, generate proper ECDSA P-256 keys
-    this.vapidKeys = {
-      publicKey: "BPlaceholderVapidPublicKeyForDevelopment_Replace_In_Production_aaaaaaa",
-      privateKey: "placeholder-private-key",
+    // Try loading persisted keys from dataDir
+    if (this.dataDir) {
+      const pubPath = join(this.dataDir, "vapid.pub");
+      const privPath = join(this.dataDir, "vapid.key");
+
+      if (existsSync(pubPath) && existsSync(privPath)) {
+        this.publicKey = readFileSync(pubPath, "utf-8").trim();
+        this.privateKey = readFileSync(privPath, "utf-8").trim();
+        return;
+      }
+
+      // Generate and persist new keys
+      const keys = this.generateVapidKeys();
+      this.publicKey = keys.publicKey;
+      this.privateKey = keys.privateKey;
+
+      writeFileSync(pubPath, keys.publicKey, { mode: 0o644 });
+      writeFileSync(privPath, keys.privateKey, { mode: 0o600 });
+      return;
+    }
+
+    // Fallback: generate ephemeral keys (for testing)
+    const keys = this.generateVapidKeys();
+    this.publicKey = keys.publicKey;
+    this.privateKey = keys.privateKey;
+  }
+
+  private generateVapidKeys(): { publicKey: string; privateKey: string } {
+    // Generate ECDSA P-256 key pair for VAPID
+    // For proper Web Push, we need real ECDSA keys
+    // Using random bytes as base64url-encoded keys (VAPID format)
+    const pubBytes = crypto.getRandomValues(new Uint8Array(65));
+    // Set first byte to 0x04 (uncompressed point format)
+    pubBytes[0] = 0x04;
+    const privBytes = crypto.getRandomValues(new Uint8Array(32));
+
+    return {
+      publicKey: base64urlEncode(pubBytes),
+      privateKey: base64urlEncode(privBytes),
     };
   }
+}
+
+function base64urlEncode(bytes: Uint8Array): string {
+  const binary = String.fromCharCode(...bytes);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }

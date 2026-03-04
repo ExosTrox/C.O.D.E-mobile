@@ -27,16 +27,27 @@ export class OpenClawAdapter implements ProviderAdapter {
   }
 
   getSpawnCommand(options: SpawnOptions, _apiKey?: string): SpawnConfig {
+    const containerName = options.sessionId
+      ? `cm-openclaw-${options.sessionId.slice(0, 8)}`
+      : `cm-openclaw-${Date.now()}`;
+
     const args = [
       "run",
       "-it",
       "--rm",
+      `--name=${containerName}`,
       "--cpus=2",
       "--memory=2g",
-      "-v",
-      `${options.workDir}:/workspace`,
+      "--pids-limit=256",
+      "--read-only",
+      "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m",
+      "-v", `${options.workDir}:/workspace`,
+      "-w", "/workspace",
+      "--network=openclaw-net",
       "openclaw/openclaw:latest",
     ];
+
+    // Extra args go after the image name
     if (options.args) args.push(...options.args);
 
     return {

@@ -76,7 +76,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   const analyticsService = new AnalyticsService(database.db, new Map());
 
   // ── Initialize notification service ──────────────────────
-  const notificationService = new NotificationService(database.db);
+  const notificationService = new NotificationService(database.db, config.dataDir);
 
   // ── Initialize API key service ─────────────────────────
   const apiKeyService = new ApiKeyService(database.db, config.dataDir);
@@ -87,6 +87,9 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   // ── Initialize session services ────────────────────────────
   const tmuxService = new TmuxService();
   const sessionManager = new SessionManager(database.db, tmuxService, config.dataDir);
+
+  // Wire services into session manager for provider resolution and analytics
+  sessionManager.setServices(providerRegistry, apiKeyService, analyticsService);
 
   // Reconcile session state with tmux reality
   void sessionManager.reconcile();
