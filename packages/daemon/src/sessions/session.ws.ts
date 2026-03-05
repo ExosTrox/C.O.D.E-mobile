@@ -137,22 +137,22 @@ function handleClientMessage(
       break;
 
     case "input":
-      void sessionManager.sendInput(msg.sessionId as string, msg.text as string).catch((err: Error) => {
-        send(ws, { type: "error", message: err.message });
+      void sessionManager.sendInput(msg.sessionId as string, msg.text as string).catch((err: unknown) => {
+        send(ws, { type: "error", message: err instanceof Error ? err.message : "Input failed" });
       });
       break;
 
     case "keys":
-      void sessionManager.sendKeys(msg.sessionId as string, msg.keys as string).catch((err: Error) => {
-        send(ws, { type: "error", message: err.message });
+      void sessionManager.sendKeys(msg.sessionId as string, msg.keys as string).catch((err: unknown) => {
+        send(ws, { type: "error", message: err instanceof Error ? err.message : "Keys failed" });
       });
       break;
 
     case "resize":
       void sessionManager
         .resizeTerminal(msg.sessionId as string, msg.cols as number, msg.rows as number)
-        .catch((err: Error) => {
-          send(ws, { type: "error", message: err.message });
+        .catch((err: unknown) => {
+          send(ws, { type: "error", message: err instanceof Error ? err.message : "Resize failed" });
         });
       break;
 
