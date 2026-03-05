@@ -2,7 +2,7 @@
 // High-level orchestration: wires tmux, streaming, and DB.
 
 import { mkdirSync, existsSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 import type { Database } from "bun:sqlite";
 import type { SessionId, SessionStatus, SessionCreateOptions, Session } from "@code-mobile/core";
 import { PROVIDERS } from "@code-mobile/core";
@@ -89,8 +89,11 @@ export class SessionManager {
     }
     const model = options.model ?? provider.defaultModel;
 
-    // Work directory
-    const workDir = options.workDir ?? process.cwd();
+    // Work directory — validate to prevent path traversal
+    const workDir = options.workDir ? resolve(options.workDir) : process.cwd();
+    if (workDir.includes("\0")) {
+      throw new Error("Invalid work directory path");
+    }
 
     // Use provider adapter if available, otherwise fall back to simple resolution
     let command: string;
@@ -120,10 +123,24 @@ export class SessionManager {
     mkdirSync(sessionDir, { recursive: true });
     const outputPath = join(sessionDir, "output.log");
 
-    // Build env vars (adapter env + user overrides)
+    // Build env vars (adapter env + filtered user overrides)
+    // Block dangerous env vars that could hijack execution
+    const BLOCKED_ENV_VARS = new Set([
+      "PATH", "HOME", "SHELL", "USER", "LD_PRELOAD", "LD_LIBRARY_PATH",
+      "NODE_OPTIONS", "BUN_INSTALL", "PYTHONPATH",
+    ]);
+    const filteredUserEnv: Record<string, string> = {};
+    if (options.envVars) {
+      for (const [k, v] of Object.entries(options.envVars)) {
+        if (!BLOCKED_ENV_VARS.has(k.toUpperCase())) {
+          filteredUserEnv[k] = v;
+        }
+      }
+    }
+
     const env: Record<string, string> = {
       ...adapterEnv,
-      ...options.envVars,
+      ...filteredUserEnv,
       TERM: "xterm-256color",
     };
 

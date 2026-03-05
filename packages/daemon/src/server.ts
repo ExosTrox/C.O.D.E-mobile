@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
 import { HTTPException } from "hono/http-exception";
+import { resolve, normalize } from "path";
 import type { ApiResponse } from "@code-mobile/core";
 import type { Config } from "./config.js";
 import type { AppDatabase } from "./db/index.js";
@@ -122,7 +123,16 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
     }),
   );
 
-  // ── 4. Error handler ──────────────────────────────────────
+  // ── 4. Security headers ──────────────────────────────────
+  app.use("*", async (c, next) => {
+    await next();
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("X-Frame-Options", "DENY");
+    c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+    c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  });
+
+  // ── 5. Error handler ──────────────────────────────────────
   app.onError((err, c) => {
     const requestId = c.get("requestId");
     console.error(`  [ERROR] ${requestId}: ${err.message}`);
@@ -142,29 +152,60 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
     return c.json(body, 500);
   });
 
-  // ── 5. Rate limiting for auth endpoints ────────────────────
-  const authAttempts = new Map<string, { count: number; resetAt: number }>();
-  app.use("/api/v1/auth/login", async (c, next) => {
-    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  // ── 6. Rate limiting ──────────────────────────────────────
+  const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+  function rateLimit(key: string, maxRequests: number, windowMs: number): boolean {
     const now = Date.now();
-    const entry = authAttempts.get(ip);
-
-    if (entry && entry.resetAt > now && entry.count >= 10) {
-      const body: ApiResponse<never> = {
-        success: false,
-        error: { code: "RATE_LIMITED", message: "Too many login attempts. Try again later." },
-      };
-      return c.json(body, 429);
+    const entry = rateBuckets.get(key);
+    if (entry && entry.resetAt > now && entry.count >= maxRequests) {
+      return true; // blocked
     }
-
     if (!entry || entry.resetAt <= now) {
-      authAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+      rateBuckets.set(key, { count: 1, resetAt: now + windowMs });
     } else {
       entry.count++;
     }
+    return false;
+  }
 
+  // Cleanup stale entries every 5 minutes
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of rateBuckets) {
+      if (entry.resetAt <= now) rateBuckets.delete(key);
+    }
+  }, 5 * 60 * 1000);
+
+  // Auth endpoints: 10 requests per 15 min per IP
+  app.use("/api/v1/auth/*", async (c, next) => {
+    if (c.req.method === "GET" || c.req.method === "OPTIONS") return next();
+    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    if (rateLimit(`auth:${ip}`, 10, 15 * 60 * 1000)) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "RATE_LIMITED", message: "Too many attempts. Try again later." },
+      };
+      return c.json(body, 429);
+    }
     return next();
   });
+
+  // API mutations: 60 requests per minute per IP
+  for (const path of ["/api/v1/sessions", "/api/v1/api-keys"]) {
+    app.use(path, async (c, next) => {
+      if (c.req.method === "GET" || c.req.method === "OPTIONS") return next();
+      const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+      if (rateLimit(`api:${ip}`, 60, 60 * 1000)) {
+        const body: ApiResponse<never> = {
+          success: false,
+          error: { code: "RATE_LIMITED", message: "Too many requests. Slow down." },
+        };
+        return c.json(body, 429);
+      }
+      return next();
+    });
+  }
 
   // ── 6. Auth middleware (skip public paths) ─────────────────
   const authMiddleware = createAuthMiddleware(authService);
@@ -259,11 +300,19 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
     return MIME_TYPES[ext] ?? "application/octet-stream";
   }
 
+  const resolvedDistPath = resolve(webDistPath);
+
   app.get("/*", async (c) => {
     const reqPath = c.req.path;
 
+    // Path traversal protection: resolve and verify path stays within dist
+    const normalizedPath = normalize(reqPath);
+    const filePath = resolve(resolvedDistPath, `.${normalizedPath}`);
+    if (!filePath.startsWith(resolvedDistPath)) {
+      return c.text("Forbidden", 403);
+    }
+
     // Try serving the exact file
-    const filePath = `${webDistPath}${reqPath}`;
     const file = Bun.file(filePath);
     if (await file.exists() && file.size > 0) {
       return new Response(file.stream(), {
@@ -278,9 +327,10 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
     }
 
     // Try default document for directory requests
-    if (reqPath.endsWith("/")) {
-      const indexFile = Bun.file(`${filePath}index.html`);
-      if (await indexFile.exists()) {
+    if (normalizedPath.endsWith("/")) {
+      const indexPath = resolve(filePath, "index.html");
+      const indexFile = Bun.file(indexPath);
+      if (indexPath.startsWith(resolvedDistPath) && await indexFile.exists()) {
         return new Response(indexFile.stream(), {
           headers: { "Content-Type": "text/html; charset=utf-8" },
         });
@@ -288,7 +338,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
     }
 
     // SPA fallback: serve index.html for non-API/non-file routes
-    const indexHtml = Bun.file(`${webDistPath}/index.html`);
+    const indexHtml = Bun.file(`${resolvedDistPath}/index.html`);
     if (await indexHtml.exists()) {
       return new Response(indexHtml.stream(), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
