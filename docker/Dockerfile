@@ -14,7 +14,7 @@ COPY packages/daemon/package.json packages/daemon/
 COPY packages/web/package.json packages/web/
 
 # Install all dependencies (including devDependencies for build)
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Copy all source files
 COPY packages/core/ packages/core/
