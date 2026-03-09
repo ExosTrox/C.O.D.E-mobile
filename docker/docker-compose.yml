@@ -4,13 +4,10 @@
 # No reverse proxy (Caddy/Nginx) needed.
 #
 # Cloudflare setup:
-#   1. Add A record: app.yourdomain.com → Hetzner server IP (orange cloud = proxied)
-#   2. SSL/TLS mode: Full (strict)
-#   3. Generate Origin Certificate in CF dashboard → save to server:
-#      /etc/ssl/cloudflare/cert.pem + /etc/ssl/cloudflare/key.pem
-#   4. WebSocket support is enabled by default in Cloudflare
-#   5. Optional: Use Cloudflare Tunnel (cloudflared) for zero-exposed-ports setup
-#   6. Page Rules: Cache *.js, *.css, *.woff2 from /assets/*
+#   1. Add A record: code.gilbergarcia.com → 5.161.125.115 (orange cloud = proxied)
+#   2. SSL/TLS mode: Full
+#   3. WebSocket support is enabled by default in Cloudflare
+#   4. Optional: Page Rules to cache *.js, *.css, *.woff2 from /assets/*
 #
 # Usage:
 #   docker compose up -d          # start
@@ -36,7 +33,7 @@ services:
       - HOST=0.0.0.0
       - NODE_ENV=production
       - DATA_DIR=/home/codemobile/.codemobile
-      - CORS_ORIGINS=${CORS_ORIGINS:-https://app.yourdomain.com}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://code.gilbergarcia.com}
     restart: unless-stopped
     deploy:
       resources:
