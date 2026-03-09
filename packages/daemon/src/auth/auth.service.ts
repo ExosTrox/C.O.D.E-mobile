@@ -317,6 +317,19 @@ export class AuthService {
     ]);
   }
 
+  // ── Default User (for bootstrap code auth) ───────────────
+
+  /** Ensure a default user exists for code-based auth. Returns the user ID. */
+  async ensureDefaultUser(): Promise<string> {
+    const existing = this.getFirstUser();
+    if (existing) return existing.id;
+
+    const userId = crypto.randomUUID();
+    const passwordHash = await this.hashPassword(crypto.randomUUID()); // random unusable password
+    this.createUser(userId, "admin", passwordHash);
+    return userId;
+  }
+
   // ── Cleanup ───────────────────────────────────────────────
 
   cleanupExpiredTokens(): void {

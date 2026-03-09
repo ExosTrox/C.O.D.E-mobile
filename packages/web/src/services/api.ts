@@ -226,6 +226,15 @@ export class ApiClient {
     );
   }
 
+  redeemCode(code: string, deviceName: string) {
+    return this.request<AuthTokens>(
+      "POST",
+      "/auth/redeem-code",
+      { code, deviceName },
+      true,
+    );
+  }
+
   // ── Account methods ────────────────────────────────────
 
   changePassword(currentPassword: string, newPassword: string) {

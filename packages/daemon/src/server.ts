@@ -9,6 +9,7 @@ import type { AppDatabase } from "./db/index.js";
 import { AuthService } from "./auth/auth.service.js";
 import type { DecodedToken } from "./auth/auth.service.js";
 import { TotpService } from "./auth/totp.service.js";
+import { BootstrapCodeService } from "./auth/bootstrap-code.service.js";
 import { createAuthRoutes } from "./auth/auth.routes.js";
 import { createAuthMiddleware } from "./auth/auth.middleware.js";
 import { TmuxService } from "./sessions/tmux.service.js";
@@ -41,6 +42,7 @@ const PUBLIC_PATHS = [
   "/api/v1/auth/",
   "/api/v1/ws",
   "/internal/hooks/",
+  "/internal/generate-code",
   "/api/v1/notifications/vapid-key",
   "/assets/",
   "/manifest.json",
@@ -64,6 +66,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   // ── Initialize auth services ───────────────────────────────
   const authService = new AuthService(database.db, config.dataDir);
   const totpService = new TotpService();
+  const bootstrapCodeService = new BootstrapCodeService();
 
   // Bootstrap token on first run
   if (authService.isFirstRun()) {
@@ -242,7 +245,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   // ── Route groups ────────────────────────────────────────────
 
   // Auth routes
-  app.route("/api/v1/auth", createAuthRoutes(authService, totpService));
+  app.route("/api/v1/auth", createAuthRoutes(authService, totpService, bootstrapCodeService));
 
   // Session routes (real implementation)
   app.route("/api/v1/sessions", createSessionRoutes(sessionManager));
@@ -267,6 +270,34 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
 
   // API key routes
   app.route("/api/v1/api-keys", createApiKeyRoutes(apiKeyService));
+
+  // ── Internal: Generate bootstrap code (localhost only) ─────
+  app.post("/internal/generate-code", async (c) => {
+    // Only allow from localhost
+    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
+      ?? c.req.header("x-real-ip")
+      ?? "unknown";
+    const isLocal = ip === "127.0.0.1" || ip === "::1" || ip === "localhost" || ip === "unknown";
+
+    if (!isLocal && config.nodeEnv === "production") {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "FORBIDDEN", message: "Only available from localhost" },
+      };
+      return c.json(body, 403);
+    }
+
+    const code = bootstrapCodeService.generate();
+
+    // Ensure default user exists
+    await authService.ensureDefaultUser();
+
+    const body: ApiResponse<{ code: string; expiresIn: number }> = {
+      success: true,
+      data: { code, expiresIn: 300 },
+    };
+    return c.json(body);
+  });
 
   // ── Static file serving (PWA) ──────────────────────────────
   // Serve built web assets from packages/web/dist/

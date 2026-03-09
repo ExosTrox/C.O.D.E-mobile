@@ -11,9 +11,5 @@ export function DefaultRedirect() {
     return <Navigate to="/sessions" replace />;
   }
 
-  if (!isSetupComplete) {
-    return <Navigate to="/connect" replace />;
-  }
-
-  return <Navigate to="/login" replace />;
+  return <Navigate to="/connect" replace />;
 }

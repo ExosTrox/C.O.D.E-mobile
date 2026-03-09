@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { ApiResponse } from "@code-mobile/core";
 import type { AuthService, DecodedToken } from "./auth.service.js";
 import type { TotpService } from "./totp.service.js";
+import type { BootstrapCodeService } from "./bootstrap-code.service.js";
 
 interface AuthEnv {
   Variables: {
@@ -13,6 +14,7 @@ interface AuthEnv {
 export function createAuthRoutes(
   authService: AuthService,
   totpService: TotpService,
+  bootstrapCodeService?: BootstrapCodeService,
 ): Hono<AuthEnv> {
   const auth = new Hono<AuthEnv>();
 
@@ -354,6 +356,55 @@ export function createAuthRoutes(
     const body: ApiResponse<{ message: string }> = {
       success: true,
       data: { message: "Device revoked" },
+    };
+    return c.json(body);
+  });
+
+  // ── POST /redeem-code ─────────────────────────────────────
+  // Redeem a bootstrap code for JWT tokens (no password needed)
+  auth.post("/redeem-code", async (c) => {
+    if (!bootstrapCodeService) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "NOT_AVAILABLE", message: "Bootstrap codes not enabled" },
+      };
+      return c.json(body, 501);
+    }
+
+    const { code, deviceName } = await c.req.json<{
+      code: string;
+      deviceName: string;
+    }>();
+
+    if (!code || !deviceName) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "code and deviceName are required" },
+      };
+      return c.json(body, 400);
+    }
+
+    if (!bootstrapCodeService.redeem(code)) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "INVALID_CODE", message: "Invalid or expired code" },
+      };
+      return c.json(body, 401);
+    }
+
+    // Ensure a user exists and generate tokens
+    const userId = await authService.ensureDefaultUser();
+    const deviceId = crypto.randomUUID();
+    authService.createOrUpdateDevice(deviceId, userId, deviceName);
+    const tokens = await authService.generateTokens(userId, deviceId);
+
+    const body: ApiResponse<{
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+    }> = {
+      success: true,
+      data: tokens,
     };
     return c.json(body);
   });

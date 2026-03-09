@@ -1,0 +1,17 @@
+{
+  "id": "code-mobile",
+  "name": "CODE Mobile",
+  "description": "Generate access codes for CODE Mobile terminal",
+  "version": "1.0.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "CODE_MOBILE_URL": {
+        "type": "string",
+        "description": "URL of the CODE Mobile daemon",
+        "default": "http://localhost:3000"
+      }
+    }
+  }
+}
