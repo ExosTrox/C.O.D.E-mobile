@@ -1,5 +1,5 @@
 # ── Stage 1: Build ──────────────────────────────────────────────
-FROM oven/bun:1 AS builder
+FROM oven/bun:1.3.10 AS builder
 
 WORKDIR /app
 
@@ -37,7 +37,7 @@ COPY packages/web/index.html packages/web/
 RUN bun run build:web
 
 # ── Stage 2: Runtime ────────────────────────────────────────────
-FROM oven/bun:1-slim AS runtime
+FROM oven/bun:1.3.10-slim AS runtime
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
