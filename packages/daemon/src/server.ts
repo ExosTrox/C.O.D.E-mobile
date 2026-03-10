@@ -577,7 +577,10 @@ echo "You can access your terminal from https://$SERVER"
       const indexFile = Bun.file(indexPath);
       if (indexPath.startsWith(resolvedDistPath) && await indexFile.exists()) {
         return new Response(indexFile.stream(), {
-          headers: { "Content-Type": "text/html; charset=utf-8" },
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+          },
         });
       }
     }
