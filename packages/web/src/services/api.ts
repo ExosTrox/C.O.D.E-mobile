@@ -336,6 +336,69 @@ export class ApiClient {
     );
   }
 
+  // ── File upload ────────────────────────────────────────
+
+  async uploadFile(
+    file: File,
+    destination?: string,
+  ): Promise<{ remotePath: string; fileName: string; size: number }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (destination) {
+      formData.append("destination", destination);
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120_000); // 2 min for uploads
+
+    try {
+      const url = `${this.baseUrl}/api/v1/files/upload`;
+      const headers: Record<string, string> = {};
+      const { accessToken } = this.getAuthStore();
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      // Do NOT set Content-Type — browser sets it with boundary for multipart
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+
+      if (res.status === 401) {
+        const refreshed = await this.tryRefresh();
+        if (refreshed) {
+          return this.uploadFile(file, destination);
+        }
+        this.getAuthStore().logout();
+        window.location.href = "/login";
+        throw new ApiError(401, "UNAUTHORIZED", "Session expired");
+      }
+
+      const json = (await res.json()) as ApiResponse<{
+        remotePath: string;
+        fileName: string;
+        size: number;
+      }>;
+
+      if (!json.success) {
+        throw new ApiError(res.status, json.error.code, json.error.message);
+      }
+
+      return json.data;
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new ApiError(0, "TIMEOUT", "Upload timed out");
+      }
+      throw new ApiError(0, "NETWORK_ERROR", "Upload failed");
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   // ── Health ──────────────────────────────────────────────
 
   async checkHealth(overrideUrl?: string): Promise<HealthResponse> {

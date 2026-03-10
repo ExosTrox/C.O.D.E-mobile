@@ -33,6 +33,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   "gemini-cli": "Gemini",
   deepseek: "DeepSeek",
   openclaw: "OpenClaw",
+  shell: "Terminal",
 };
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -41,6 +42,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   "gemini-cli": "bg-[#3b82f6]/20 text-[#3b82f6]",
   deepseek: "bg-[#6366f1]/20 text-[#6366f1]",
   openclaw: "bg-[#ec4899]/20 text-[#ec4899]",
+  shell: "bg-[#22d3ee]/20 text-[#22d3ee]",
 };
 
 export function TerminalHeader({

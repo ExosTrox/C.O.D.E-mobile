@@ -30,6 +30,7 @@ const PROVIDER_STYLE: Record<string, { bg: string; text: string; label: string }
   "gemini-cli": { bg: "bg-[#3b82f6]/20", text: "text-[#3b82f6]", label: "Gemini" },
   deepseek: { bg: "bg-[#6366f1]/20", text: "text-[#6366f1]", label: "DeepSeek" },
   openclaw: { bg: "bg-[#ec4899]/20", text: "text-[#ec4899]", label: "OpenClaw" },
+  shell: { bg: "bg-[#22d3ee]/20", text: "text-[#22d3ee]", label: "Terminal" },
 };
 
 const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {

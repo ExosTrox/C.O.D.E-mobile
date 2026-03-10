@@ -139,6 +139,35 @@ export function SessionsPage() {
           </div>
         )}
 
+        {/* Greeting + stats */}
+        <div className="px-4 pt-4 pb-1 space-y-2">
+          <h2 className="text-lg font-semibold text-text-primary">
+            Welcome back <span className="inline-block animate-[wave_1.8s_ease-in-out_infinite] origin-[70%_70%]">&#128075;</span>
+          </h2>
+          {sessions && sessions.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/10 text-success text-xs font-medium">
+                <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+                {sessions.filter((s) => s.status === "running" || s.status === "starting").length} running
+              </span>
+              <span className="text-xs text-text-dimmed">
+                {sessions.length} total session{sessions.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <style>{`
+          @keyframes wave {
+            0%, 60%, 100% { transform: rotate(0deg); }
+            10% { transform: rotate(14deg); }
+            20% { transform: rotate(-8deg); }
+            30% { transform: rotate(14deg); }
+            40% { transform: rotate(-4deg); }
+            50% { transform: rotate(10deg); }
+          }
+        `}</style>
+
         {/* Filter chips */}
         <div className="flex gap-2 px-4 py-3">
           {FILTERS.map((f) => (
@@ -176,29 +205,33 @@ export function SessionsPage() {
         {/* Empty state */}
         {isEmpty && (
           <div className="flex-1 flex items-center justify-center px-4 py-16">
-            <div className="text-center space-y-4">
-              <motion.div
-                animate={{ y: [0, -6, 0] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                className="h-16 w-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto"
-              >
-                <Terminal className="h-7 w-7 text-accent" />
-              </motion.div>
-              <div className="space-y-1">
-                <h2 className="text-lg font-semibold text-text-primary">
-                  No sessions yet
-                </h2>
-                <p className="text-sm text-text-muted max-w-xs">
-                  Create your first session to start coding with AI.
-                </p>
+            <div className="relative rounded-2xl p-[1px] bg-gradient-to-br from-accent via-purple-500/50 to-blue-500/30">
+              <div className="rounded-2xl bg-surface-1 px-8 py-10">
+                <div className="text-center space-y-4">
+                  <motion.div
+                    animate={{ y: [0, -6, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className="h-16 w-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto"
+                  >
+                    <Terminal className="h-7 w-7 text-accent" />
+                  </motion.div>
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-semibold text-text-primary">
+                      No sessions yet
+                    </h2>
+                    <p className="text-sm text-text-muted max-w-xs">
+                      Create your first session to start coding with AI.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-accent text-surface-0 text-sm font-medium hover:bg-accent-hover transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create your first session
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => setModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-accent text-surface-0 text-sm font-medium hover:bg-accent-hover transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                Create your first session
-              </button>
             </div>
           </div>
         )}

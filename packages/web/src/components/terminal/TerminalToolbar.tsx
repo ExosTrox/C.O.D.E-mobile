@@ -2,8 +2,10 @@
 // Touch-friendly special keys bar for mobile.
 
 import { useState, useCallback, useRef } from "react";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { wsClient } from "../../services/ws";
+import { apiClient } from "../../services/api";
 import { cn } from "../../lib/cn";
 
 interface TerminalToolbarProps {
@@ -63,7 +65,9 @@ const ROW_3: KeyDef[] = [
 export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
   const [expanded, setExpanded] = useState(false);
   const [ctrlActive, setCtrlActive] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const ctrlTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sendKey = useCallback(
     (def: KeyDef) => {
@@ -109,6 +113,26 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
     [sessionId, ctrlActive],
   );
 
+  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const result = await apiClient.uploadFile(file);
+      toast.success(`Uploaded ${result.fileName}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upload failed";
+      toast.error(message);
+    } finally {
+      setUploading(false);
+      // Reset file input so same file can be re-selected
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }, []);
+
   return (
     <div className="terminal-toolbar bg-surface-1/95 backdrop-blur-lg border-t border-border safe-bottom select-none md:hidden">
       {/* Expand/collapse toggle */}
@@ -120,8 +144,60 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
         {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
       </button>
 
-      {/* Row 1: always visible */}
-      <KeyRow keys={ROW_1} onPress={sendKey} ctrlActive={ctrlActive} />
+      {/* Row 1: always visible — keys + upload button */}
+      <div className="flex gap-1 px-1.5 py-1 overflow-x-auto scrollbar-none">
+        {ROW_1.map((def) => (
+          <button
+            key={def.label}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              sendKey(def);
+            }}
+            className={cn(
+              "shrink-0 h-8 rounded-md font-mono text-xs",
+              "bg-surface-2 border border-border",
+              "active:scale-90 active:bg-surface-3",
+              "transition-all duration-75",
+              def.wide ? "px-3 min-w-[3rem]" : "px-2 min-w-[2rem]",
+              def.key === "__CTRL__" && ctrlActive
+                ? "bg-accent/20 border-accent text-accent"
+                : "text-text-secondary hover:text-text-primary",
+            )}
+          >
+            {def.key === "__CTRL__" ? "Ctrl" : def.label}
+          </button>
+        ))}
+
+        {/* Upload button */}
+        <button
+          onPointerDown={(e) => {
+            e.preventDefault();
+            if (navigator.vibrate) navigator.vibrate(10);
+            fileInputRef.current?.click();
+          }}
+          disabled={uploading}
+          className={cn(
+            "shrink-0 h-8 px-2.5 min-w-[2.5rem] rounded-md text-xs",
+            "bg-surface-2 border border-border",
+            "active:scale-90 active:bg-surface-3",
+            "transition-all duration-75",
+            uploading
+              ? "text-accent animate-pulse"
+              : "text-text-secondary hover:text-text-primary",
+          )}
+          aria-label="Upload file"
+        >
+          <Upload className="h-3.5 w-3.5 mx-auto" />
+        </button>
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleUpload}
+        />
+      </div>
 
       {/* Row 2 & 3: expandable */}
       {expanded && (

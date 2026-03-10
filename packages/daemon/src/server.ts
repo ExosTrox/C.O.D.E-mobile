@@ -26,6 +26,7 @@ import { NotificationService } from "./notifications/notification.service.js";
 import { createNotificationRoutes } from "./notifications/notification.routes.js";
 import { ApiKeyService } from "./apikeys/apikey.service.js";
 import { createApiKeyRoutes } from "./apikeys/apikey.routes.js";
+import { createFileRoutes } from "./files/files.routes.js";
 import { createDefaultRegistry } from "@code-mobile/providers";
 import { createProviderRoutes } from "./providers/provider.routes.js";
 
@@ -280,6 +281,9 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
 
   // API key routes
   app.route("/api/v1/api-keys", createApiKeyRoutes(apiKeyService));
+
+  // File upload routes
+  app.route("/api/v1/files", createFileRoutes(remoteSSH));
 
   // ── Internal: Generate bootstrap code (localhost only) ─────
   app.post("/internal/generate-code", async (c) => {

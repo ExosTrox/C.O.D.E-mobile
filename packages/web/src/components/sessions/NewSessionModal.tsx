@@ -28,6 +28,7 @@ const PROVIDER_COLORS: Record<string, { bg: string; text: string; border: string
   "gemini-cli": { bg: "bg-[#3b82f6]/10", text: "text-[#3b82f6]", border: "border-[#3b82f6]/30" },
   deepseek: { bg: "bg-[#6366f1]/10", text: "text-[#6366f1]", border: "border-[#6366f1]/30" },
   openclaw: { bg: "bg-[#ec4899]/10", text: "text-[#ec4899]", border: "border-[#ec4899]/30" },
+  shell: { bg: "bg-[#22d3ee]/10", text: "text-[#22d3ee]", border: "border-[#22d3ee]/30" },
 };
 
 // ── Random name generator ───────────────────────────────────
