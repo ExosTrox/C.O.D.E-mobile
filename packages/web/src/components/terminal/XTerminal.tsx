@@ -6,6 +6,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { wsClient } from "../../services/ws";
+import { apiClient } from "../../services/api";
 import { useSessionsStore } from "../../stores/sessions.store";
 import { useTerminalStore } from "../../stores/terminal.store";
 import { cn } from "../../lib/cn";
@@ -229,11 +230,28 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     lastOffsetRef.current = 0;
     let subscribed = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let httpPollTimer: ReturnType<typeof setInterval> | null = null;
+    let disposed = false;
 
     // Subscribe with retry — streamer may not be ready immediately after session creation
     const trySubscribe = (offset?: number) => {
-      if (subscribed) return;
+      if (subscribed || disposed) return;
       wsClient.subscribe(sessionId, offset);
+    };
+
+    // HTTP fallback: fetch output via REST API if WS isn't delivering
+    const fetchOutputViaHttp = async () => {
+      if (disposed) return;
+      try {
+        const result = await apiClient.getSessionOutput(sessionId, lastOffsetRef.current);
+        if (result.output && result.output.length > 0) {
+          term.write(result.output);
+          lastOffsetRef.current = result.size; // size = end offset
+          subscribed = true; // Mark as working
+        }
+      } catch {
+        // Ignore — session might not exist yet or auth issue
+      }
     };
 
     // Wait for WS to be connected before subscribing
@@ -246,6 +264,8 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
       if (msg.sessionId !== sessionId) return;
       subscribed = true; // We got data, subscription is working
       if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      // Stop HTTP polling once WS is working
+      if (httpPollTimer) { clearInterval(httpPollTimer); httpPollTimer = null; }
       try {
         const raw = atob(msg.data);
         const bytes = new Uint8Array(raw.length);
@@ -262,7 +282,7 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     const handleError = (msg: { type: string; message: string }) => {
       // If subscribe failed (streamer not ready), retry after a delay
       if (msg.message?.includes("not found") || msg.message?.includes("not active")) {
-        if (!subscribed) {
+        if (!subscribed && !disposed) {
           console.warn(`[XTerminal] Subscribe failed for ${sessionId}, retrying in 2s...`);
           term.write("\r\n\x1b[33m⏳ Connecting to session...\x1b[0m\r\n");
           retryTimer = setTimeout(() => {
@@ -281,11 +301,17 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     wsClient.on("error", handleError as never);
     wsClient.on("connected", handleReconnect as never);
 
-    // If no output received within 3s of subscribing, retry
+    // If no WS output within 3s, start HTTP polling as fallback
     retryTimer = setTimeout(() => {
-      if (!subscribed) {
-        console.warn(`[XTerminal] No output after 3s for ${sessionId}, re-subscribing...`);
+      if (!subscribed && !disposed) {
+        console.warn(`[XTerminal] No WS output after 3s, starting HTTP fallback for ${sessionId}`);
+        // Try WS re-subscribe
         trySubscribe(0);
+        // Also start HTTP polling every 2s as robust fallback
+        void fetchOutputViaHttp();
+        httpPollTimer = setInterval(() => {
+          if (!disposed) void fetchOutputViaHttp();
+        }, 2000);
       }
     }, 3000);
 
@@ -303,8 +329,10 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     // ── Cleanup ─────────────────────────────────────────────
 
     return () => {
+      disposed = true;
       if (fitRafRef.current) cancelAnimationFrame(fitRafRef.current);
       if (retryTimer) clearTimeout(retryTimer);
+      if (httpPollTimer) clearInterval(httpPollTimer);
       resizeObserver.disconnect();
       dataDisposable.dispose();
       wsClient.off("output", handleOutput as never);
