@@ -1,8 +1,10 @@
 // ── TerminalToolbar ─────────────────────────────────────────
-// Touch-friendly special keys bar for mobile.
+// Touch-friendly special keys bar for mobile terminal.
+// Compact single-row default, expandable for symbols & ctrl combos.
 
 import { useState, useCallback, useRef } from "react";
-import { ChevronUp, ChevronDown, Upload } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronUp, Upload, Keyboard } from "lucide-react";
 import { toast } from "sonner";
 import { wsClient } from "../../services/ws";
 import { apiClient } from "../../services/api";
@@ -16,48 +18,60 @@ interface TerminalToolbarProps {
 
 interface KeyDef {
   label: string;
+  sublabel?: string;
   key?: string;
   input?: string;
   ctrl?: string;
-  wide?: boolean;
+  type?: "modifier" | "nav" | "ctrl-combo" | "symbol" | "action";
 }
 
-const ROW_1: KeyDef[] = [
-  { label: "Tab", key: "Tab", wide: true },
-  { label: "Ctrl", key: "__CTRL__", wide: true },
-  { label: "Esc", key: "Escape", wide: true },
-  { label: "\u2191", key: "Up" },
-  { label: "\u2193", key: "Down" },
-  { label: "\u2190", key: "Left" },
-  { label: "\u2192", key: "Right" },
+// Primary row: essential keys always visible
+const PRIMARY_KEYS: KeyDef[] = [
+  { label: "Esc", key: "Escape", type: "modifier" },
+  { label: "Tab", key: "Tab", type: "modifier" },
+  { label: "Ctrl", key: "__CTRL__", type: "modifier" },
+  { label: "↑", key: "Up", type: "nav" },
+  { label: "↓", key: "Down", type: "nav" },
+  { label: "←", key: "Left", type: "nav" },
+  { label: "→", key: "Right", type: "nav" },
 ];
 
-const ROW_2: KeyDef[] = [
-  { label: "|", input: "|" },
-  { label: "~", input: "~" },
-  { label: "`", input: "`" },
-  { label: "/", input: "/" },
-  { label: "-", input: "-" },
-  { label: "_", input: "_" },
-  { label: "=", input: "=" },
-  { label: "+", input: "+" },
-  { label: "[", input: "[" },
-  { label: "]", input: "]" },
-  { label: "{", input: "{" },
-  { label: "}", input: "}" },
-  { label: "\\", input: "\\" },
-  { label: "\"", input: "\"" },
-  { label: "'", input: "'" },
+// Ctrl combos
+const CTRL_KEYS: KeyDef[] = [
+  { label: "C", sublabel: "cancel", ctrl: "c", type: "ctrl-combo" },
+  { label: "D", sublabel: "EOF", ctrl: "d", type: "ctrl-combo" },
+  { label: "Z", sublabel: "suspend", ctrl: "z", type: "ctrl-combo" },
+  { label: "L", sublabel: "clear", ctrl: "l", type: "ctrl-combo" },
+  { label: "A", sublabel: "home", ctrl: "a", type: "ctrl-combo" },
+  { label: "E", sublabel: "end", ctrl: "e", type: "ctrl-combo" },
+  { label: "R", sublabel: "search", ctrl: "r", type: "ctrl-combo" },
+  { label: "W", sublabel: "del word", ctrl: "w", type: "ctrl-combo" },
+  { label: "U", sublabel: "del line", ctrl: "u", type: "ctrl-combo" },
+  { label: "K", sublabel: "kill", ctrl: "k", type: "ctrl-combo" },
 ];
 
-const ROW_3: KeyDef[] = [
-  { label: "C-c", ctrl: "c", wide: true },
-  { label: "C-d", ctrl: "d", wide: true },
-  { label: "C-z", ctrl: "z", wide: true },
-  { label: "C-l", ctrl: "l", wide: true },
-  { label: "C-a", ctrl: "a", wide: true },
-  { label: "C-e", ctrl: "e", wide: true },
-  { label: "C-r", ctrl: "r", wide: true },
+// Symbols row
+const SYMBOL_KEYS: KeyDef[] = [
+  { label: "|", input: "|", type: "symbol" },
+  { label: "~", input: "~", type: "symbol" },
+  { label: "`", input: "`", type: "symbol" },
+  { label: "/", input: "/", type: "symbol" },
+  { label: "-", input: "-", type: "symbol" },
+  { label: "_", input: "_", type: "symbol" },
+  { label: "=", input: "=", type: "symbol" },
+  { label: "+", input: "+", type: "symbol" },
+  { label: "[", input: "[", type: "symbol" },
+  { label: "]", input: "]", type: "symbol" },
+  { label: "{", input: "{", type: "symbol" },
+  { label: "}", input: "}", type: "symbol" },
+  { label: "\\", input: "\\", type: "symbol" },
+  { label: "\"", input: "\"", type: "symbol" },
+  { label: "'", input: "'", type: "symbol" },
+  { label: "&", input: "&", type: "symbol" },
+  { label: ";", input: ";", type: "symbol" },
+  { label: "$", input: "$", type: "symbol" },
+  { label: ">", input: ">", type: "symbol" },
+  { label: "<", input: "<", type: "symbol" },
 ];
 
 // ── Component ──────────────────────────────────────────────
@@ -71,9 +85,7 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
 
   const sendKey = useCallback(
     (def: KeyDef) => {
-      if (navigator.vibrate) {
-        navigator.vibrate(8);
-      }
+      if (navigator.vibrate) navigator.vibrate(8);
 
       if (def.key === "__CTRL__") {
         setCtrlActive((prev) => !prev);
@@ -119,54 +131,71 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
       toast.error(message);
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }, []);
 
   return (
-    <div className="bg-surface-0/80 backdrop-blur-2xl border-t border-white/[0.04] safe-bottom select-none md:hidden">
-      {/* Expand/collapse toggle */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center justify-center w-full h-5 text-text-dimmed hover:text-text-muted transition-colors"
-        aria-label={expanded ? "Collapse toolbar" : "Expand toolbar"}
-      >
-        {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
-      </button>
+    <div className="bg-[#0d0f14]/90 backdrop-blur-2xl border-t border-white/[0.06] safe-bottom select-none md:hidden">
+      {/* ── Primary Row: always visible ──────────────── */}
+      <div className="flex items-center gap-1 px-1.5 py-1.5">
+        {/* Main keys */}
+        <div className="flex gap-1 overflow-x-auto scrollbar-none flex-1">
+          {PRIMARY_KEYS.map((def) => (
+            <ToolbarKey
+              key={def.label}
+              def={def}
+              ctrlActive={ctrlActive}
+              onPress={sendKey}
+            />
+          ))}
+        </div>
 
-      {/* Row 1: always visible */}
-      <div className="flex gap-1 px-2 pb-1.5 overflow-x-auto scrollbar-none">
-        {ROW_1.map((def) => (
-          <ToolbarKey
-            key={def.label}
-            def={def}
-            ctrlActive={ctrlActive}
-            onPress={sendKey}
-          />
-        ))}
+        {/* Action buttons */}
+        <div className="flex gap-1 shrink-0 pl-1 border-l border-white/[0.06]">
+          {/* Upload */}
+          <button
+            onPointerDown={(e) => {
+              e.preventDefault();
+              if (navigator.vibrate) navigator.vibrate(8);
+              fileInputRef.current?.click();
+            }}
+            disabled={uploading}
+            className={cn(
+              "h-9 w-9 rounded-lg flex items-center justify-center",
+              "transition-all duration-75 active:scale-90",
+              uploading
+                ? "text-accent animate-pulse bg-accent/10"
+                : "text-white/30 hover:text-white/50 bg-white/[0.03] hover:bg-white/[0.06]",
+            )}
+            aria-label="Upload file"
+          >
+            <Upload className="h-3.5 w-3.5" />
+          </button>
 
-        {/* Upload button */}
-        <button
-          onPointerDown={(e) => {
-            e.preventDefault();
-            if (navigator.vibrate) navigator.vibrate(8);
-            fileInputRef.current?.click();
-          }}
-          disabled={uploading}
-          className={cn(
-            "shrink-0 h-9 px-2.5 min-w-[2.5rem] rounded-lg text-xs font-medium",
-            "bg-surface-2/40 border border-white/[0.04]",
-            "active:scale-95 transition-all duration-75",
-            uploading
-              ? "text-accent animate-pulse"
-              : "text-text-dimmed hover:text-text-muted",
-          )}
-          aria-label="Upload file"
-        >
-          <Upload className="h-3.5 w-3.5 mx-auto" />
-        </button>
+          {/* Expand toggle */}
+          <button
+            onPointerDown={(e) => {
+              e.preventDefault();
+              if (navigator.vibrate) navigator.vibrate(8);
+              setExpanded(!expanded);
+            }}
+            className={cn(
+              "h-9 w-9 rounded-lg flex items-center justify-center",
+              "transition-all duration-75 active:scale-90",
+              expanded
+                ? "text-accent bg-accent/10 border border-accent/20"
+                : "text-white/30 hover:text-white/50 bg-white/[0.03] hover:bg-white/[0.06]",
+            )}
+            aria-label={expanded ? "Collapse" : "More keys"}
+          >
+            {expanded ? (
+              <ChevronUp className="h-3.5 w-3.5 rotate-180 transition-transform" />
+            ) : (
+              <Keyboard className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </div>
 
         <input
           ref={fileInputRef}
@@ -176,21 +205,54 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
         />
       </div>
 
-      {/* Row 2 & 3: expandable */}
-      {expanded && (
-        <>
-          <div className="flex gap-1 px-2 pb-1 overflow-x-auto scrollbar-none">
-            {ROW_2.map((def) => (
-              <ToolbarKey key={def.label} def={def} ctrlActive={ctrlActive} onPress={sendKey} />
-            ))}
-          </div>
-          <div className="flex gap-1 px-2 pb-1.5 overflow-x-auto scrollbar-none">
-            {ROW_3.map((def) => (
-              <ToolbarKey key={def.label} def={def} ctrlActive={false} onPress={sendKey} />
-            ))}
-          </div>
-        </>
-      )}
+      {/* ── Expanded Section ──────────────────────────── */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            {/* Ctrl Combos */}
+            <div className="px-1.5 pb-1.5">
+              <div className="flex items-center gap-1.5 mb-1 px-1">
+                <span className="text-[10px] font-medium text-white/20 uppercase tracking-wider">Ctrl +</span>
+                <div className="flex-1 h-px bg-white/[0.04]" />
+              </div>
+              <div className="flex gap-1 overflow-x-auto scrollbar-none">
+                {CTRL_KEYS.map((def) => (
+                  <ToolbarKey
+                    key={def.label}
+                    def={def}
+                    ctrlActive={false}
+                    onPress={sendKey}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Symbols */}
+            <div className="px-1.5 pb-2">
+              <div className="flex items-center gap-1.5 mb-1 px-1">
+                <span className="text-[10px] font-medium text-white/20 uppercase tracking-wider">Symbols</span>
+                <div className="flex-1 h-px bg-white/[0.04]" />
+              </div>
+              <div className="flex gap-1 overflow-x-auto scrollbar-none">
+                {SYMBOL_KEYS.map((def, i) => (
+                  <ToolbarKey
+                    key={`${def.label}-${i}`}
+                    def={def}
+                    ctrlActive={ctrlActive}
+                    onPress={sendKey}
+                  />
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -208,6 +270,9 @@ function ToolbarKey({
 }) {
   const isCtrlToggle = def.key === "__CTRL__";
   const isActive = isCtrlToggle && ctrlActive;
+  const isCtrlCombo = def.type === "ctrl-combo";
+  const isNav = def.type === "nav";
+  const isModifier = def.type === "modifier" && !isCtrlToggle;
 
   return (
     <button
@@ -216,17 +281,40 @@ function ToolbarKey({
         onPress(def);
       }}
       className={cn(
-        "shrink-0 h-9 rounded-lg font-mono text-xs font-medium",
-        "transition-all duration-75 active:scale-95",
-        def.wide ? "px-3 min-w-[2.75rem]" : "px-2 min-w-[2rem]",
+        "shrink-0 rounded-lg font-mono text-[12px] font-medium",
+        "transition-all duration-75 active:scale-90",
+        // Sizing
+        isCtrlCombo
+          ? "h-10 px-2.5 min-w-[2.75rem] flex flex-col items-center justify-center gap-0"
+          : isNav
+            ? "h-9 w-9 flex items-center justify-center text-sm"
+            : isModifier
+              ? "h-9 px-3 min-w-[2.75rem]"
+              : "h-9 px-2.5 min-w-[2rem]",
+        // Colors
         isActive
-          ? "bg-accent/15 border border-accent/30 text-accent shadow-sm shadow-accent/10"
-          : def.ctrl
-            ? "bg-surface-2/40 border border-white/[0.04] text-accent/70 hover:text-accent"
-            : "bg-surface-2/40 border border-white/[0.04] text-text-muted hover:text-text-primary",
+          ? "bg-accent/20 border border-accent/40 text-accent shadow-[0_0_8px_rgba(var(--color-accent-raw),0.15)]"
+          : isCtrlToggle
+            ? "bg-white/[0.04] border border-white/[0.06] text-white/50 hover:text-accent hover:border-accent/20"
+            : isCtrlCombo
+              ? "bg-white/[0.04] border border-white/[0.06] text-accent/80 hover:text-accent hover:bg-accent/10"
+              : isModifier
+                ? "bg-white/[0.06] border border-white/[0.08] text-white/60 hover:text-white/80"
+                : isNav
+                  ? "bg-white/[0.04] border border-white/[0.06] text-white/50 hover:text-white/70"
+                  : "bg-white/[0.03] border border-white/[0.04] text-white/50 hover:text-white/70 hover:bg-white/[0.06]",
       )}
     >
-      {isCtrlToggle ? "Ctrl" : def.label}
+      {isCtrlCombo ? (
+        <>
+          <span className="text-[12px] leading-none">{def.label}</span>
+          {def.sublabel && (
+            <span className="text-[8px] leading-none text-white/25 mt-0.5">{def.sublabel}</span>
+          )}
+        </>
+      ) : (
+        def.label
+      )}
     </button>
   );
 }

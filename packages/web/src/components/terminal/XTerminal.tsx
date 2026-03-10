@@ -135,50 +135,48 @@ interface XTerminalProps {
   className?: string;
 }
 
+// ── Component ──────────────────────────────────────────────
+
 export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const fitRafRef = useRef<number | null>(null);
   const lastOffsetRef = useRef(0);
-  const fitRafRef = useRef(0);
+
   const setTerminalSize = useSessionsStore((s) => s.setTerminalSize);
+
+  // Read store values
   const termTheme = useTerminalStore((s) => s.theme);
   const termFontSize = useTerminalStore((s) => s.fontSize);
   const termCursorStyle = useTerminalStore((s) => s.cursorStyle);
   const termScrollback = useTerminalStore((s) => s.scrollbackLines);
 
-  // ── Debounced fit helper ──────────────────────────────────
+  // ── Debounced fit ─────────────────────────────────────────
 
   const doFit = useCallback(() => {
-    // Cancel any pending fit
     if (fitRafRef.current) cancelAnimationFrame(fitRafRef.current);
-
     fitRafRef.current = requestAnimationFrame(() => {
-      const fitAddon = fitAddonRef.current;
-      if (!fitAddon) return;
-
-      try {
-        fitAddon.fit();
-      } catch {
-        return;
-      }
-
+      const fit = fitAddonRef.current;
       const term = terminalRef.current;
-      if (term) {
+      if (!fit || !term) return;
+      try {
+        fit.fit();
         const { cols, rows } = term;
         setTerminalSize(sessionId, cols, rows);
         wsClient.sendResize(sessionId, cols, rows);
+      } catch {
+        // ignore
       }
     });
   }, [sessionId, setTerminalSize]);
 
-  // ── Initialize terminal ───────────────────────────────────
+  // ── Initialize terminal (only on sessionId change) ────────
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // Create terminal with user preferences
     const term = new Terminal({
       cursorBlink: true,
       cursorStyle: termCursorStyle,
@@ -191,30 +189,27 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
       drawBoldTextInBrightColors: true,
     });
 
-    // Create addons
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.loadAddon(new WebLinksAddon());
 
-    // Open terminal in container
     term.open(container);
 
-    // Lazy-load WebGL addon for better performance
+    // Lazy-load WebGL addon
     void import("@xterm/addon-webgl").then(({ WebglAddon }) => {
+      if (!terminalRef.current) return; // disposed
       try {
         const webglAddon = new WebglAddon();
         webglAddon.onContextLoss(() => webglAddon.dispose());
         term.loadAddon(webglAddon);
       } catch {
-        // WebGL not available — canvas renderer is the default
+        // WebGL not available
       }
     });
 
-    // Store refs
     terminalRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Initial fit
     requestAnimationFrame(() => doFit());
 
     // ── WS subscribe & output handling ──────────────────────
@@ -225,7 +220,6 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     const handleOutput = (msg: { sessionId: string; data: string; offset: number }) => {
       if (msg.sessionId !== sessionId) return;
       try {
-        // Decode base64 to Uint8Array for proper UTF-8 handling
         const raw = atob(msg.data);
         const bytes = new Uint8Array(raw.length);
         for (let i = 0; i < raw.length; i++) {
@@ -251,7 +245,7 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
       wsClient.sendInput(sessionId, data);
     });
 
-    // ── ResizeObserver (debounced via doFit) ─────────────────
+    // ── ResizeObserver ──────────────────────────────────────
 
     const resizeObserver = new ResizeObserver(() => doFit());
     resizeObserver.observe(container);
@@ -269,7 +263,47 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [sessionId, doFit, termTheme, termFontSize, termCursorStyle, termScrollback]);
+    // Only recreate on sessionId change — settings applied live below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, doFit]);
+
+  // ── Apply theme changes live (without recreating terminal) ─
+
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (!term) return;
+    const theme = THEMES[termTheme] ?? THEMES["tokyo-night"];
+    term.options.theme = theme;
+    // Update container background to match theme
+    if (containerRef.current) {
+      containerRef.current.style.backgroundColor = theme?.background ?? "#1a1b26";
+    }
+  }, [termTheme]);
+
+  // ── Apply font size changes live ──────────────────────────
+
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (!term) return;
+    term.options.fontSize = termFontSize;
+    doFit();
+  }, [termFontSize, doFit]);
+
+  // ── Apply cursor style changes live ───────────────────────
+
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (!term) return;
+    term.options.cursorStyle = termCursorStyle;
+  }, [termCursorStyle]);
+
+  // ── Apply scrollback changes live ─────────────────────────
+
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (!term) return;
+    term.options.scrollback = termScrollback;
+  }, [termScrollback]);
 
   // ── Focus terminal on click ───────────────────────────────
 
@@ -280,7 +314,8 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
   return (
     <div
       ref={containerRef}
-      className={cn("h-full w-full bg-terminal-bg", className)}
+      className={cn("h-full w-full", className)}
+      style={{ backgroundColor: (THEMES[termTheme] ?? THEMES["tokyo-night"])?.background ?? "#1a1b26" }}
       onClick={handleClick}
     />
   );
