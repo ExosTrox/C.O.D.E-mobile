@@ -209,6 +209,7 @@ export class TmuxService {
   async pipePaneToFile(name: string, filePath: string): Promise<void> {
     if (this.remote) {
       const remoteLogPath = `/tmp/cm-${name}.log`;
+      console.log(`[TmuxService] Setting up pipe-pane: ${name} → ${remoteLogPath} → ${filePath}`);
       // Don't use -o flag — it's a toggle that CLOSES the pipe if one already exists
       await this.exec(["pipe-pane", "-t", name, `cat >> ${shellEscape(remoteLogPath)}`]);
 
@@ -217,9 +218,17 @@ export class TmuxService {
       // Use >> to avoid overwriting any output pipe-pane may have already captured.
       try {
         const captureCmd = `tmux capture-pane -t ${shellEscape(name)} -p >> ${shellEscape(remoteLogPath)}`;
-        const proc = Bun.spawn(this.sshArgs(captureCmd), { stdout: "ignore", stderr: "ignore" });
-        await proc.exited;
-      } catch { /* ignore capture failure */ }
+        const proc = Bun.spawn(this.sshArgs(captureCmd), { stdout: "ignore", stderr: "pipe" });
+        const captureExit = await proc.exited;
+        if (captureExit !== 0) {
+          const stderr = await new Response(proc.stderr).text();
+          console.warn(`[TmuxService] capture-pane failed for ${name} (exit ${captureExit}): ${stderr.trim()}`);
+        } else {
+          console.log(`[TmuxService] capture-pane succeeded for ${name}`);
+        }
+      } catch (err) {
+        console.warn(`[TmuxService] capture-pane error for ${name}:`, err);
+      }
 
       // Send Enter to trigger a fresh prompt that pipe-pane WILL capture
       // (ensures there's visible output even if the shell was idle)
@@ -264,11 +273,19 @@ export class TmuxService {
       ? `tail -f -c +${localSize + 1} ${shellEscape(remoteLogPath)}`
       : `tail -f -c +0 ${shellEscape(remoteLogPath)}`;
 
+    console.log(`[TmuxService] Starting tail -f SSH pipe for ${name}: ${tailCmd}`);
     const tailProc = Bun.spawn(this.sshArgs(tailCmd), {
       stdout: "pipe",
       stderr: "pipe",
     });
     this.tailProcesses.set(name, tailProc);
+
+    // Check if tail process exits immediately (e.g. SSH auth failure)
+    void tailProc.exited.then((code) => {
+      if (code !== 0) {
+        console.error(`[TmuxService] tail process for ${name} exited with code ${code}`);
+      }
+    });
 
     // Log stderr from tail process for debugging
     (async () => {

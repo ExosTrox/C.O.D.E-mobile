@@ -227,10 +227,25 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     // ── WS subscribe & output handling ──────────────────────
 
     lastOffsetRef.current = 0;
-    wsClient.subscribe(sessionId);
+    let subscribed = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Subscribe with retry — streamer may not be ready immediately after session creation
+    const trySubscribe = (offset?: number) => {
+      if (subscribed) return;
+      wsClient.subscribe(sessionId, offset);
+    };
+
+    // Wait for WS to be connected before subscribing
+    if (wsClient.connected) {
+      trySubscribe();
+    }
+    // If not connected, the "connected" handler below will subscribe
 
     const handleOutput = (msg: { sessionId: string; data: string; offset: number }) => {
       if (msg.sessionId !== sessionId) return;
+      subscribed = true; // We got data, subscription is working
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
       try {
         const raw = atob(msg.data);
         const bytes = new Uint8Array(raw.length);
@@ -244,12 +259,35 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
       }
     };
 
+    const handleError = (msg: { type: string; message: string }) => {
+      // If subscribe failed (streamer not ready), retry after a delay
+      if (msg.message?.includes("not found") || msg.message?.includes("not active")) {
+        if (!subscribed) {
+          console.warn(`[XTerminal] Subscribe failed for ${sessionId}, retrying in 2s...`);
+          term.write("\r\n\x1b[33m⏳ Connecting to session...\x1b[0m\r\n");
+          retryTimer = setTimeout(() => {
+            trySubscribe(lastOffsetRef.current);
+          }, 2000);
+        }
+      }
+    };
+
     const handleReconnect = () => {
-      wsClient.subscribe(sessionId, lastOffsetRef.current);
+      subscribed = false;
+      trySubscribe(lastOffsetRef.current);
     };
 
     wsClient.on("output", handleOutput as never);
+    wsClient.on("error", handleError as never);
     wsClient.on("connected", handleReconnect as never);
+
+    // If no output received within 3s of subscribing, retry
+    retryTimer = setTimeout(() => {
+      if (!subscribed) {
+        console.warn(`[XTerminal] No output after 3s for ${sessionId}, re-subscribing...`);
+        trySubscribe(0);
+      }
+    }, 3000);
 
     // ── Input forwarding ────────────────────────────────────
 
@@ -266,9 +304,11 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
 
     return () => {
       if (fitRafRef.current) cancelAnimationFrame(fitRafRef.current);
+      if (retryTimer) clearTimeout(retryTimer);
       resizeObserver.disconnect();
       dataDisposable.dispose();
       wsClient.off("output", handleOutput as never);
+      wsClient.off("error", handleError as never);
       wsClient.off("connected", handleReconnect as never);
       wsClient.unsubscribe(sessionId);
       term.dispose();

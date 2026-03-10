@@ -1,7 +1,7 @@
 // ── SessionManager ──────────────────────────────────────────
 // High-level orchestration: wires tmux, streaming, and DB.
 
-import { mkdirSync, existsSync } from "fs";
+import { mkdirSync, existsSync, writeFileSync } from "fs";
 import { join, resolve } from "path";
 import type { Database } from "bun:sqlite";
 import type { SessionId, SessionStatus, SessionCreateOptions, Session } from "@code-mobile/core";
@@ -63,16 +63,21 @@ export class SessionManager {
       )
       .all();
 
+    console.log(`[SessionManager] Reconciling ${rows.length} active sessions`);
+
     for (const row of rows) {
-      const alive = await this.tmux.hasSession(row.tmux_name);
+      const tmux = this.getTmux(row.user_id ?? undefined);
+      const alive = await tmux.hasSession(row.tmux_name);
       if (!alive) {
+        console.log(`[SessionManager] Session ${row.id} (${row.tmux_name}) is dead, marking stopped`);
         this.db.run(
           "UPDATE sessions SET status = 'stopped', updated_at = unixepoch() WHERE id = ?",
           [row.id],
         );
       } else {
-        // Re-attach streamer for live sessions
-        this.ensureStreamer(row.id, row.tmux_name);
+        console.log(`[SessionManager] Session ${row.id} (${row.tmux_name}) is alive, re-attaching streamer`);
+        // Re-attach pipe and streamer for live sessions
+        await this.ensureStreamer(row.id, row.tmux_name, row.user_id ?? undefined);
       }
     }
   }
@@ -166,15 +171,21 @@ export class SessionManager {
 
     // Create the tmux session (per-user or legacy)
     const tmux = this.getTmux(userId);
+    console.log(`[SessionManager] Creating tmux session ${tmuxName}: ${command} ${args.join(" ")}`);
     await tmux.createSession(tmuxName, command, args, env);
 
+    // Small delay to let the shell start and output initial prompt
+    await sleep(500);
+
     // Pipe terminal output to file
+    console.log(`[SessionManager] Setting up pipe-pane for ${tmuxName} → ${outputPath}`);
     await tmux.pipePaneToFile(tmuxName, outputPath);
 
     // Start streamer
     const streamer = new SessionStreamer(id, outputPath);
     streamer.start();
     this.streamers.set(id, streamer);
+    console.log(`[SessionManager] Streamer started for ${id}`);
 
     // Insert into DB
     this.db.run(
@@ -389,11 +400,28 @@ export class SessionManager {
     return row;
   }
 
-  private ensureStreamer(id: string, _tmuxName: string): void {
+  private async ensureStreamer(id: string, tmuxName: string, userId?: string): Promise<void> {
     if (this.streamers.has(id)) return;
 
-    const outputPath = join(this.dataDir, "sessions", id, "output.log");
-    if (!existsSync(outputPath)) return;
+    const sessionDir = join(this.dataDir, "sessions", id);
+    const outputPath = join(sessionDir, "output.log");
+
+    // Create output directory and file if they don't exist
+    if (!existsSync(sessionDir)) {
+      mkdirSync(sessionDir, { recursive: true });
+    }
+    if (!existsSync(outputPath)) {
+      writeFileSync(outputPath, "");
+    }
+
+    // Re-setup pipe-pane so tmux output flows to our file
+    const tmux = this.getTmux(userId);
+    try {
+      await tmux.pipePaneToFile(tmuxName, outputPath);
+      console.log(`[SessionManager] Re-attached pipe-pane for ${id} (${tmuxName})`);
+    } catch (err) {
+      console.warn(`[SessionManager] Failed to re-attach pipe-pane for ${id}:`, err);
+    }
 
     const streamer = new SessionStreamer(id, outputPath);
     streamer.start();

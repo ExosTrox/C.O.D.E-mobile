@@ -182,12 +182,25 @@ function handleSubscribe(
   sessionId: string,
   sessionManager: SessionManager,
   fromOffset?: number,
+  retryCount = 0,
 ): void {
   // Already subscribed?
   if (client.subscriptions.has(sessionId)) return;
 
   const streamer = sessionManager.getStreamer(sessionId);
   if (!streamer) {
+    // Streamer may not be ready yet (race between session creation and subscribe).
+    // Retry up to 5 times with increasing delay.
+    if (retryCount < 5) {
+      const delay = 1000 * (retryCount + 1); // 1s, 2s, 3s, 4s, 5s
+      console.log(`[WS] Streamer not ready for ${sessionId}, retry ${retryCount + 1}/5 in ${delay}ms`);
+      setTimeout(() => {
+        if (clients.has(client)) { // Only if client is still connected
+          handleSubscribe(client, ws, sessionId, sessionManager, fromOffset, retryCount + 1);
+        }
+      }, delay);
+      return;
+    }
     send(ws, { type: "error", message: `Session not found or not active: ${sessionId}` });
     return;
   }

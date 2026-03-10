@@ -36,12 +36,10 @@ export class SessionStreamer extends EventEmitter {
       writeFileSync(this.outputPath, "");
     }
 
-    // Seed offset from current file size (only stream new data)
-    try {
-      this.offset = statSync(this.outputPath).size;
-    } catch {
-      this.offset = 0;
-    }
+    // Start from offset 0 — stream ALL data including initial output.
+    // Clients that subscribe later get history via getHistory().
+    // This ensures nothing is missed between pipe-pane setup and streamer start.
+    this.offset = 0;
 
     this.watcher = watch(this.outputPath, () => {
       this.scheduleFlush();
