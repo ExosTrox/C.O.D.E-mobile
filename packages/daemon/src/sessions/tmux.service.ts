@@ -29,19 +29,25 @@ export class TmuxService {
     this.remote = remote;
   }
 
+  /** Build SSH args for running a command on the remote host with proper PATH */
+  private sshArgs(remoteCmd: string): string[] {
+    const r = this.remote!;
+    return [
+      "ssh",
+      "-p", String(r.port),
+      "-i", r.identityFile,
+      "-o", "StrictHostKeyChecking=no",
+      "-o", "ConnectTimeout=5",
+      `${r.user}@${r.host}`,
+      `export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH && ${remoteCmd}`,
+    ];
+  }
+
   // ── Core executor ─────────────────────────────────────────
 
   private async exec(args: string[]): Promise<string> {
     const cmd = this.remote
-      ? [
-          "ssh",
-          "-p", String(this.remote.port),
-          "-i", this.remote.identityFile,
-          "-o", "StrictHostKeyChecking=no",
-          "-o", "ConnectTimeout=5",
-          `${this.remote.user}@${this.remote.host}`,
-          "tmux", ...args,
-        ]
+      ? this.sshArgs(`tmux ${args.map(a => shellEscape(a)).join(" ")}`)
       : ["tmux", ...args];
 
     const proc = Bun.spawn(cmd, {
@@ -121,13 +127,7 @@ export class TmuxService {
     }
     // Clean up remote log file
     if (this.remote) {
-      Bun.spawn([
-        "ssh", "-p", String(this.remote.port),
-        "-i", this.remote.identityFile,
-        "-o", "StrictHostKeyChecking=no",
-        `${this.remote.user}@${this.remote.host}`,
-        "rm", "-f", `/tmp/cm-${name}.log`,
-      ]);
+      Bun.spawn(this.sshArgs(`rm -f /tmp/cm-${shellEscape(name)}.log`));
     }
   }
 
@@ -203,24 +203,12 @@ export class TmuxService {
       await this.exec(["pipe-pane", "-t", name, "-o", `cat >> ${shellEscape(remoteLogPath)}`]);
 
       // Ensure the remote file exists
-      Bun.spawn([
-        "ssh", "-p", String(this.remote.port),
-        "-i", this.remote.identityFile,
-        "-o", "StrictHostKeyChecking=no",
-        `${this.remote.user}@${this.remote.host}`,
-        "touch", remoteLogPath,
-      ]);
+      Bun.spawn(this.sshArgs(`touch ${shellEscape(remoteLogPath)}`));
 
       // Start a background SSH process to tail the remote file into the local file
       const localFile = Bun.file(filePath);
       const writer = localFile.writer();
-      const tailProc = Bun.spawn([
-        "ssh", "-p", String(this.remote.port),
-        "-i", this.remote.identityFile,
-        "-o", "StrictHostKeyChecking=no",
-        `${this.remote.user}@${this.remote.host}`,
-        "tail", "-f", "-c", "+0", remoteLogPath,
-      ], {
+      const tailProc = Bun.spawn(this.sshArgs(`tail -f -c +0 ${shellEscape(remoteLogPath)}`), {
         stdout: "pipe",
         stderr: "ignore",
       });
