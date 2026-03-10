@@ -21,8 +21,10 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: codemobile-daemon
+    tty: true
+    stdin_open: true
     ports:
-      - "3000:3000"
+      - "80:3000"
     volumes:
       # Persistent data (DB, sessions, hooks)
       - codemobile-data:/home/codemobile/.codemobile
