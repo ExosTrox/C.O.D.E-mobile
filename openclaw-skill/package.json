@@ -1,0 +1,8 @@
+{
+  "name": "openclaw-plugin-code-mobile",
+  "version": "1.0.0",
+  "description": "Generate access codes for CODE Mobile terminal",
+  "main": "index.ts",
+  "type": "module",
+  "keywords": ["openclaw-plugin"]
+}
