@@ -192,9 +192,9 @@ export class AuthService {
     userId: string,
     deviceId: string,
   ): Promise<TokenPair> {
-    const expiresIn = 3600; // 1 hour in seconds
+    const expiresIn = 43200; // 12 hours in seconds
 
-    // Access token: 1 hour
+    // Access token: 12 hours
     const accessToken = await new SignJWT({
       sub: userId,
       device: deviceId,
@@ -202,7 +202,7 @@ export class AuthService {
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
-      .setExpirationTime("1h")
+      .setExpirationTime("12h")
       .sign(this.jwtSecret);
 
     // Refresh token: 30 days

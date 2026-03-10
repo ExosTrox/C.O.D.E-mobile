@@ -94,6 +94,7 @@ export class ApiClient {
     path: string,
     body?: unknown,
     skipAuth = false,
+    retried = false,
   ): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
@@ -112,10 +113,11 @@ export class ApiClient {
       });
 
       // 401: try token refresh once then retry
-      if (res.status === 401 && !skipAuth) {
+      if (res.status === 401 && !retried) {
         const refreshed = await this.tryRefresh();
         if (refreshed) {
-          return this.request<T>(method, path, body, true);
+          // Retry with new token (retried=true prevents infinite loop)
+          return this.retryRequest<T>(method, path, body);
         }
         // Refresh failed — redirect to login
         this.getAuthStore().logout();
@@ -152,6 +154,10 @@ export class ApiClient {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  private retryRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
+    return this.request<T>(method, path, body, false, true);
   }
 
   private async tryRefresh(): Promise<boolean> {
