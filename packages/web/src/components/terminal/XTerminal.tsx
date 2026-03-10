@@ -247,12 +247,19 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
         if (result.output && result.output.length > 0) {
           term.write(result.output);
           lastOffsetRef.current = result.size; // size = end offset
-          subscribed = true; // Mark as working
+          subscribed = true;
+          if (httpPollTimer) { clearInterval(httpPollTimer); httpPollTimer = null; }
         }
-      } catch {
-        // Ignore — session might not exist yet or auth issue
+      } catch (err) {
+        // Show error in terminal for debugging
+        const msg = err instanceof Error ? err.message : String(err);
+        term.write(`\r\n\x1b[31m[HTTP fetch error: ${msg}]\x1b[0m\r\n`);
       }
     };
+
+    // Show diagnostics in terminal
+    term.write(`\x1b[90m[Connecting to session ${sessionId.slice(0, 8)}...]\x1b[0m\r\n`);
+    term.write(`\x1b[90m[WS: ${wsClient.connected ? "connected" : "disconnected"}]\x1b[0m\r\n`);
 
     // Immediately fetch output via HTTP (most reliable — works even when WS is down)
     void fetchOutputViaHttp();
@@ -260,6 +267,8 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     // Also try WS for real-time streaming
     if (wsClient.connected) {
       trySubscribe();
+    } else {
+      term.write(`\x1b[33m[WebSocket not connected, using HTTP polling]\x1b[0m\r\n`);
     }
     // If not connected, the "connected" handler below will subscribe
 
@@ -304,10 +313,11 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     wsClient.on("error", handleError as never);
     wsClient.on("connected", handleReconnect as never);
 
-    // If no WS output within 3s, start HTTP polling as fallback
+    // If no output within 3s, start HTTP polling as fallback
     retryTimer = setTimeout(() => {
       if (!subscribed && !disposed) {
-        console.warn(`[XTerminal] No WS output after 3s, starting HTTP fallback for ${sessionId}`);
+        term.write(`\r\n\x1b[33m[No output after 3s — starting HTTP polling]\x1b[0m\r\n`);
+        term.write(`\x1b[90m[WS: ${wsClient.connected ? "connected" : "disconnected"}]\x1b[0m\r\n`);
         // Try WS re-subscribe
         trySubscribe(0);
         // Also start HTTP polling every 2s as robust fallback
