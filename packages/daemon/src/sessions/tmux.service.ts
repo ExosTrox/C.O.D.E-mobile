@@ -24,6 +24,7 @@ export class TmuxError extends Error {
 export class TmuxService {
   private readonly remote?: RemoteSSHConfig;
   private tailProcesses = new Map<string, Subprocess>();
+  private tailRestartTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(remote?: RemoteSSHConfig) {
     this.remote = remote;
@@ -119,11 +120,20 @@ export class TmuxService {
 
   async killSession(name: string): Promise<void> {
     await this.exec(["kill-session", "-t", name]);
-    // Clean up remote tail process if any
+    this.cleanupTailProcess(name);
+  }
+
+  /** Stop tail process and cleanup timers for a session. */
+  cleanupTailProcess(name: string): void {
     const tailProc = this.tailProcesses.get(name);
     if (tailProc) {
       tailProc.kill();
       this.tailProcesses.delete(name);
+    }
+    const timer = this.tailRestartTimers.get(name);
+    if (timer) {
+      clearTimeout(timer);
+      this.tailRestartTimers.delete(name);
     }
     // Clean up remote log file
     if (this.remote) {
@@ -198,7 +208,6 @@ export class TmuxService {
    */
   async pipePaneToFile(name: string, filePath: string): Promise<void> {
     if (this.remote) {
-      // Pipe tmux output to a temp file on the Mac
       const remoteLogPath = `/tmp/cm-${name}.log`;
       // Don't use -o flag — it's a toggle that CLOSES the pipe if one already exists
       await this.exec(["pipe-pane", "-t", name, `cat >> ${shellEscape(remoteLogPath)}`]);
@@ -206,33 +215,90 @@ export class TmuxService {
       // Ensure the remote file exists
       Bun.spawn(this.sshArgs(`touch ${shellEscape(remoteLogPath)}`));
 
-      // Start a background SSH process to tail the remote file into the local file
-      const localFile = Bun.file(filePath);
-      const writer = localFile.writer();
-      const tailProc = Bun.spawn(this.sshArgs(`tail -f -c +0 ${shellEscape(remoteLogPath)}`), {
-        stdout: "pipe",
-        stderr: "ignore",
-      });
-
-      // Pipe remote tail output to local file
-      (async () => {
-        const reader = tailProc.stdout.getReader();
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            writer.write(value);
-            writer.flush();
-          }
-        } catch {
-          // Connection lost or session ended
-        }
-      })();
-
-      this.tailProcesses.set(name, tailProc);
+      // Start tail and auto-restart on disconnect
+      this.startTailPipe(name, remoteLogPath, filePath);
     } else {
       await this.exec(["pipe-pane", "-t", name, `cat >> ${shellEscape(filePath)}`]);
     }
+  }
+
+  /** Start a tail -f SSH process that pipes remote output to the local file.
+   *  Auto-restarts if the SSH connection drops. */
+  private startTailPipe(name: string, remoteLogPath: string, localFilePath: string): void {
+    // Kill existing tail process for this session
+    const existing = this.tailProcesses.get(name);
+    if (existing) {
+      existing.kill();
+      this.tailProcesses.delete(name);
+    }
+
+    // Clear any pending restart timer
+    const existingTimer = this.tailRestartTimers.get(name);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      this.tailRestartTimers.delete(name);
+    }
+
+    const localFile = Bun.file(localFilePath);
+    const writer = localFile.writer();
+
+    // Get the current local file size to use as offset for tail
+    let localSize = 0;
+    try { localSize = Bun.file(localFilePath).size; } catch { /* ignore */ }
+
+    // Start tail from the byte offset matching what we already have locally
+    const tailCmd = localSize > 0
+      ? `tail -f -c +${localSize + 1} ${shellEscape(remoteLogPath)}`
+      : `tail -f -c +0 ${shellEscape(remoteLogPath)}`;
+
+    const tailProc = Bun.spawn(this.sshArgs(tailCmd), {
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    this.tailProcesses.set(name, tailProc);
+
+    // Pipe remote tail output to local file
+    (async () => {
+      const reader = tailProc.stdout.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          writer.write(value);
+          writer.flush();
+        }
+      } catch {
+        // Connection lost or session ended
+      }
+
+      // Tail process exited — schedule restart if session still active
+      const restartTimer = setTimeout(async () => {
+        this.tailRestartTimers.delete(name);
+        // Only restart if this session still exists in our tracking
+        if (!this.tailProcesses.has(name)) return;
+        try {
+          // Verify the remote tmux session still exists
+          const alive = await this.hasSession(name);
+          if (alive) {
+            // Re-enable pipe-pane (it may have been lost with the tmux server restart)
+            try {
+              await this.exec(["pipe-pane", "-t", name, `cat >> ${shellEscape(remoteLogPath)}`]);
+            } catch { /* ignore */ }
+            this.startTailPipe(name, remoteLogPath, localFilePath);
+          }
+        } catch {
+          // SSH still down — try again in 10s
+          const retryTimer = setTimeout(() => {
+            this.tailRestartTimers.delete(name);
+            if (this.tailProcesses.has(name)) {
+              this.startTailPipe(name, remoteLogPath, localFilePath);
+            }
+          }, 10_000);
+          this.tailRestartTimers.set(name, retryTimer);
+        }
+      }, 3_000); // Wait 3s before restart attempt
+      this.tailRestartTimers.set(name, restartTimer);
+    })();
   }
 
   /** Check whether a specific session exists. */

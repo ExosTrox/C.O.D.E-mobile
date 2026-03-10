@@ -178,6 +178,8 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     const container = containerRef.current;
     if (!container) return;
 
+    const isMobile = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
     const term = new Terminal({
       cursorBlink: true,
       cursorStyle: termCursorStyle,
@@ -188,6 +190,9 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
       allowProposedApi: true,
       convertEol: true,
       drawBoldTextInBrightColors: true,
+      // Mobile: increase scroll sensitivity for touch, allow smooth scrolling
+      scrollSensitivity: isMobile ? 3 : 1,
+      fastScrollSensitivity: isMobile ? 10 : 5,
     });
 
     const fitAddon = new FitAddon();
@@ -196,21 +201,23 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
 
     term.open(container);
 
-    // Lazy-load WebGL addon
-    void import("@xterm/addon-webgl").then(({ WebglAddon }) => {
-      if (!terminalRef.current) return; // disposed
-      try {
-        const webglAddon = new WebglAddon();
-        webglAddon.onContextLoss(() => {
-          webglAddon.dispose();
-          webglAddonRef.current = null;
-        });
-        term.loadAddon(webglAddon);
-        webglAddonRef.current = webglAddon;
-      } catch {
-        // WebGL not available
-      }
-    });
+    // Lazy-load WebGL addon (skip on mobile — causes touch/performance issues on iOS)
+    if (!isMobile) {
+      void import("@xterm/addon-webgl").then(({ WebglAddon }) => {
+        if (!terminalRef.current) return; // disposed
+        try {
+          const webglAddon = new WebglAddon();
+          webglAddon.onContextLoss(() => {
+            webglAddon.dispose();
+            webglAddonRef.current = null;
+          });
+          term.loadAddon(webglAddon);
+          webglAddonRef.current = webglAddon;
+        } catch {
+          // WebGL not available
+        }
+      });
+    }
 
     terminalRef.current = term;
     fitAddonRef.current = fitAddon;

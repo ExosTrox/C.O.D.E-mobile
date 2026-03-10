@@ -15,6 +15,7 @@ export class SessionStreamer extends EventEmitter {
   private offset = 0;
   private watcher: FSWatcher | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
   private started = false;
 
   constructor(
@@ -48,8 +49,14 @@ export class SessionStreamer extends EventEmitter {
 
     // Handle watcher errors gracefully
     this.watcher.on("error", () => {
-      this.stop();
+      // Don't stop — keep polling
     });
+
+    // Polling fallback: fs.watch can miss events for files written via SSH pipe.
+    // Poll every 500ms to catch any changes fs.watch missed.
+    this.pollTimer = setInterval(() => {
+      this.scheduleFlush();
+    }, 500);
   }
 
   stop(): void {
@@ -60,6 +67,10 @@ export class SessionStreamer extends EventEmitter {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
+    }
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
     }
     this.started = false;
     this.removeAllListeners();
