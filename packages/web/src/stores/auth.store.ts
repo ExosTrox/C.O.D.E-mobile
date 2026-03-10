@@ -10,7 +10,6 @@ interface AuthState {
   isSetupComplete: boolean;
   serverUrl: string;
   isFirstRun: boolean;
-  _hydrated: boolean;
 
   // Computed
   isAuthenticated: boolean;
@@ -32,7 +31,6 @@ export const useAuthStore = create<AuthState>()(
       isSetupComplete: false,
       serverUrl: window.location.origin,
       isFirstRun: true,
-      _hydrated: false,
 
       // Computed
       get isAuthenticated() {
@@ -62,34 +60,31 @@ export const useAuthStore = create<AuthState>()(
         serverUrl: state.serverUrl,
         isFirstRun: state.isFirstRun,
       }),
-      onRehydrateStorage: () => {
-        return () => {
-          // Called after hydration completes — set flag in store
-          useAuthStore.setState({ _hydrated: true });
-        };
-      },
     },
   ),
 );
 
-// ── Hydration helper ────────────────────────────────────────
-// Read auth state directly from localStorage to avoid async hydration race.
-// This is called synchronously during render — no hooks needed.
+// ── Persisted auth reader ───────────────────────────────────
+// Read auth state directly from localStorage to avoid zustand's
+// async hydration race. Called synchronously during render.
 
 export function getPersistedAuth(): {
   accessToken: string | null;
+  refreshToken: string | null;
   isSetupComplete: boolean;
 } {
   try {
     const raw = localStorage.getItem("code-mobile-auth");
-    if (!raw) return { accessToken: null, isSetupComplete: false };
+    if (!raw) return { accessToken: null, refreshToken: null, isSetupComplete: false };
     const data = JSON.parse(raw);
+    // Zustand persist v5 stores as { state: { ... }, version: 0 }
     const state = data?.state ?? data;
     return {
       accessToken: state?.accessToken ?? null,
+      refreshToken: state?.refreshToken ?? null,
       isSetupComplete: state?.isSetupComplete ?? false,
     };
   } catch {
-    return { accessToken: null, isSetupComplete: false };
+    return { accessToken: null, refreshToken: null, isSetupComplete: false };
   }
 }
