@@ -137,12 +137,20 @@ export function TerminalPage() {
         onClear={handleClear}
       />
 
+      {session.status === "stopped" && (
+        <div className="px-3 py-1.5 bg-yellow-900/30 border-b border-yellow-700/30 text-yellow-400 text-xs text-center">
+          Session stopped — output is read-only
+        </div>
+      )}
+
       <XTerminal
         sessionId={session.id}
         className="flex-1 min-h-0"
       />
 
-      <TerminalToolbar sessionId={session.id} />
+      {session.status === "running" && (
+        <TerminalToolbar sessionId={session.id} />
+      )}
     </div>
   );
 }
