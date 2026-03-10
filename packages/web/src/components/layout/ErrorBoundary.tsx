@@ -18,6 +18,17 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReset = () => {
+    // If the error is a MIME/module loading issue, force a clean reload
+    // to bust stale service worker caches
+    const msg = this.state.error?.message ?? "";
+    if (msg.includes("MIME") || msg.includes("module") || msg.includes("text/html")) {
+      // Unregister service workers to clear stale cache, then hard reload
+      navigator.serviceWorker?.getRegistrations().then((regs) => {
+        for (const r of regs) r.unregister();
+        window.location.reload();
+      }).catch(() => window.location.reload());
+      return;
+    }
     this.setState({ hasError: false, error: null });
   };
 

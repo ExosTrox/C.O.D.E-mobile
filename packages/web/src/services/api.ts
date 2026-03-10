@@ -9,7 +9,7 @@ import type {
   ProviderConfig,
   AuthTokens,
 } from "@code-mobile/core";
-import { useAuthStore } from "../stores/auth.store";
+import { useAuthStore, getPersistedAuth } from "../stores/auth.store";
 import { useConnectionStore } from "../stores/connection.store";
 
 // ── Error class ────────────────────────────────────────────
@@ -82,9 +82,13 @@ export class ApiClient {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
-    const { accessToken } = this.getAuthStore();
-    if (accessToken) {
-      headers.Authorization = `Bearer ${accessToken}`;
+    // Read from zustand store first, fall back to localStorage directly.
+    // Zustand persist hydrates async — after page refresh, store may still
+    // have null tokens while localStorage has the real ones.
+    const storeToken = this.getAuthStore().accessToken;
+    const token = storeToken || getPersistedAuth().accessToken;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
     return headers;
   }
@@ -119,9 +123,9 @@ export class ApiClient {
           // Retry with new token (retried=true prevents infinite loop)
           return this.retryRequest<T>(method, path, body);
         }
-        // Refresh failed — redirect to login
+        // Refresh failed — clear tokens (ProtectedRoute handles redirect)
+        // Do NOT use window.location.href which causes hard reload + MIME errors
         this.getAuthStore().logout();
-        window.location.href = "/login";
         throw new ApiError(401, "UNAUTHORIZED", "Session expired");
       }
 
@@ -161,7 +165,9 @@ export class ApiClient {
   }
 
   private async tryRefresh(): Promise<boolean> {
-    const { refreshToken, setTokens, logout } = this.getAuthStore();
+    const { setTokens, logout } = this.getAuthStore();
+    // Read refresh token from store OR localStorage (zustand may not have hydrated)
+    const refreshToken = this.getAuthStore().refreshToken || getPersistedAuth().refreshToken;
     if (!refreshToken) return false;
 
     // Deduplicate concurrent refresh attempts
@@ -393,9 +399,9 @@ export class ApiClient {
     try {
       const url = `${this.baseUrl}/api/v1/files/upload`;
       const headers: Record<string, string> = {};
-      const { accessToken } = this.getAuthStore();
-      if (accessToken) {
-        headers.Authorization = `Bearer ${accessToken}`;
+      const token = this.getAuthStore().accessToken || getPersistedAuth().accessToken;
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
       }
       // Do NOT set Content-Type — browser sets it with boundary for multipart
 
@@ -412,7 +418,6 @@ export class ApiClient {
           return this.uploadFile(file, destination);
         }
         this.getAuthStore().logout();
-        window.location.href = "/login";
         throw new ApiError(401, "UNAUTHORIZED", "Session expired");
       }
 

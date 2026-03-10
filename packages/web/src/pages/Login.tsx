@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Terminal, Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
-import { useAuthStore } from "../stores/auth.store";
+import { useAuthStore, getPersistedAuth } from "../stores/auth.store";
 import { apiClient, ApiError } from "../services/api";
 import { getDeviceName } from "../lib/device";
 import { wsClient } from "../services/ws";
@@ -35,13 +35,16 @@ export function LoginPage() {
   }, [isAuthenticated, navigate]);
 
   useEffect(() => {
-    if (autoLoginAttempted.current || !refreshToken || isAuthenticated) return;
+    if (autoLoginAttempted.current || isAuthenticated) return;
+    // Read refresh token from zustand OR localStorage (zustand may not have hydrated yet)
+    const token = refreshToken || getPersistedAuth().refreshToken;
+    if (!token) return;
     autoLoginAttempted.current = true;
 
     setLoading(true);
     const timeout = setTimeout(() => setLoading(false), 8000); // Safety timeout
     apiClient
-      .refresh(refreshToken)
+      .refresh(token)
       .then((tokens) => {
         clearTimeout(timeout);
         setTokens(tokens.accessToken, tokens.refreshToken);

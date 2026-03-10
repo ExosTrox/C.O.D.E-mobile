@@ -38,8 +38,23 @@ export const useAuthStore = create<AuthState>()(
       },
 
       // Actions
-      setTokens: (access, refresh) =>
-        set({ accessToken: access, refreshToken: refresh }),
+      setTokens: (access, refresh) => {
+        set({ accessToken: access, refreshToken: refresh });
+        // Write to localStorage immediately for getPersistedAuth() sync reads
+        try {
+          const raw = localStorage.getItem("code-mobile-auth");
+          if (raw) {
+            const data = JSON.parse(raw);
+            const state = data?.state ?? data;
+            state.accessToken = access;
+            state.refreshToken = refresh;
+            if (data?.state) {
+              data.state = state;
+            }
+            localStorage.setItem("code-mobile-auth", JSON.stringify(data));
+          }
+        } catch { /* ignore */ }
+      },
 
       setSetupComplete: (complete) =>
         set({ isSetupComplete: complete, isFirstRun: !complete }),
@@ -48,8 +63,24 @@ export const useAuthStore = create<AuthState>()(
 
       setIsFirstRun: (value) => set({ isFirstRun: value }),
 
-      logout: () =>
-        set({ accessToken: null, refreshToken: null }),
+      logout: () => {
+        set({ accessToken: null, refreshToken: null });
+        // Also write to localStorage immediately so getPersistedAuth()
+        // sees the cleared tokens before zustand persist's async flush
+        try {
+          const raw = localStorage.getItem("code-mobile-auth");
+          if (raw) {
+            const data = JSON.parse(raw);
+            const state = data?.state ?? data;
+            state.accessToken = null;
+            state.refreshToken = null;
+            if (data?.state) {
+              data.state = state;
+            }
+            localStorage.setItem("code-mobile-auth", JSON.stringify(data));
+          }
+        } catch { /* ignore */ }
+      },
     }),
     {
       name: "code-mobile-auth",
