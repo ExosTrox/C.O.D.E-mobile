@@ -34,6 +34,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # SSH key for remote Mac access
       - /root/.ssh/id_ed25519_codemobile:/home/codemobile/.ssh/id_ed25519_codemobile:ro
+      # Host SSH authorized_keys — daemon appends user public keys for reverse tunnels
+      - /root/.ssh:/host-ssh
     environment:
       - PORT=80
       - HOST=0.0.0.0
@@ -41,6 +43,7 @@ services:
       - DATA_DIR=/home/codemobile/.codemobile
       - CORS_ORIGINS=${CORS_ORIGINS:-https://code.gilbergarcia.com}
       - SERVER_HOST=code.gilbergarcia.com
+      - AUTHORIZED_KEYS_FILE=/host-ssh/authorized_keys
       # Remote Mac terminal access via SSH tunnel
       - REMOTE_SSH_HOST=localhost
       - REMOTE_SSH_PORT=2222

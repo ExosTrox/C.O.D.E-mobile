@@ -1,6 +1,8 @@
 // ── MachineService ──────────────────────────────────────────
 // Manages per-user machine pairing and SSH tunnel connections.
 
+import { appendFileSync, existsSync, readFileSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 import type { Database } from "bun:sqlite";
 import { TmuxService } from "../sessions/tmux.service.js";
 import type { RemoteSSHConfig } from "../sessions/tmux.service.js";
@@ -32,6 +34,7 @@ interface PairingTokenRow {
 const PORT_RANGE_START = parseInt(process.env.TUNNEL_PORT_RANGE_START ?? "10000", 10);
 const PORT_RANGE_END = parseInt(process.env.TUNNEL_PORT_RANGE_END ?? "10999", 10);
 const SSH_IDENTITY_FILE = process.env.REMOTE_SSH_KEY ?? "/home/codemobile/.ssh/id_ed25519_codemobile";
+const AUTHORIZED_KEYS_FILE = process.env.AUTHORIZED_KEYS_FILE ?? "/host-ssh/authorized_keys";
 
 // ── Public types ──────────────────────────────────────────
 
@@ -165,7 +168,7 @@ export class MachineService {
   }
 
   /** Validate and consume a pairing token. Returns the machine info or null. */
-  redeemPairingToken(token: string, sshUser: string): MachineRow | null {
+  redeemPairingToken(token: string, sshUser: string, publicKey?: string): MachineRow | null {
     const row = this.db
       .query<PairingTokenRow, [string]>("SELECT * FROM pairing_tokens WHERE token = ?")
       .get(token);
@@ -176,6 +179,11 @@ export class MachineService {
 
     // Mark token as used
     this.db.run("UPDATE pairing_tokens SET used = 1 WHERE token = ?", [token]);
+
+    // Add public key to authorized_keys so the reverse tunnel can connect
+    if (publicKey) {
+      this.addAuthorizedKey(publicKey);
+    }
 
     // Update machine status
     this.db.run(
@@ -190,6 +198,26 @@ export class MachineService {
     return this.db
       .query<MachineRow, [string]>("SELECT * FROM user_machines WHERE user_id = ?")
       .get(row.user_id) ?? null;
+  }
+
+  /** Append a public key to the host's authorized_keys file. */
+  private addAuthorizedKey(pubKey: string): void {
+    try {
+      const keyFile = AUTHORIZED_KEYS_FILE;
+      const dir = dirname(keyFile);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
+
+      // Check if key is already present
+      if (existsSync(keyFile)) {
+        const existing = readFileSync(keyFile, "utf-8");
+        if (existing.includes(pubKey.trim())) return;
+      }
+
+      appendFileSync(keyFile, pubKey.trim() + "\n", { mode: 0o600 });
+      console.log("[MachineService] Added public key to authorized_keys");
+    } catch (err) {
+      console.error("[MachineService] Failed to add authorized key:", err);
+    }
   }
 
   // ── Health checks ───────────────────────────────────────

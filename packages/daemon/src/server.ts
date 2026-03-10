@@ -348,11 +348,12 @@ if [[ -n "$SERVER_KEY" ]]; then
   fi
 fi
 
-# 3. Complete pairing via API
+# 3. Complete pairing via API (send public key so server can authorize tunnel)
 echo "Completing pairing..."
+PUB_KEY=$(cat "$KEY_FILE.pub")
 RESULT=$(curl -sS -X POST "https://$SERVER/api/v1/machines/pair" \\
   -H "Content-Type: application/json" \\
-  -d "{\\"token\\": \\"$TOKEN\\", \\"sshUser\\": \\"$SSH_USER\\"}")
+  -d "{\\"token\\": \\"$TOKEN\\", \\"sshUser\\": \\"$SSH_USER\\", \\"publicKey\\": \\"$PUB_KEY\\"}")
 
 if echo "$RESULT" | grep -q '"success":true'; then
   echo "Pairing successful!"

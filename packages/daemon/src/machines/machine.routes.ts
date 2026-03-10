@@ -18,9 +18,10 @@ export function createMachineRoutes(machineService: MachineService): Hono<Machin
 
   // ── POST /pair — Public: complete pairing (called by user's machine) ──
   app.post("/pair", async (c) => {
-    const { token, sshUser } = await c.req.json<{
+    const { token, sshUser, publicKey } = await c.req.json<{
       token: string;
       sshUser: string;
+      publicKey?: string;
     }>();
 
     if (!token || !sshUser) {
@@ -31,7 +32,7 @@ export function createMachineRoutes(machineService: MachineService): Hono<Machin
       return c.json(body, 400);
     }
 
-    const machine = machineService.redeemPairingToken(token, sshUser);
+    const machine = machineService.redeemPairingToken(token, sshUser, publicKey);
     if (!machine) {
       const body: ApiResponse<never> = {
         success: false,
