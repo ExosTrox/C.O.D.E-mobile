@@ -361,20 +361,10 @@ export function SettingsPage() {
 
           {/* ── Account ─────────────────────────────────── */}
           <Section title="Account" icon={User}>
-            <Row label="Username" description="Primary account">
-              <span className="text-sm text-text-secondary">admin</span>
-            </Row>
-
             <Row label="Change Password" description="Update your login password">
               <Button variant="secondary" size="sm" onClick={() => setShowChangePassword(true)}>
                 Change
               </Button>
-            </Row>
-
-            <Row label="Two-Factor Auth" description="TOTP is configured">
-              <Badge variant="success" dot>
-                Enabled
-              </Badge>
             </Row>
 
             <Row label="Active Devices" description="Manage sessions">

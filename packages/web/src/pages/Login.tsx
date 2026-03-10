@@ -1,5 +1,5 @@
 // ── LoginPage ───────────────────────────────────────────────
-// Returning user login with TOTP, shake animation, remember device.
+// Simple login: username + password. TOTP only shown if server requires it.
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
@@ -18,13 +18,13 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [needsTotp, setNeedsTotp] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [shaking, setShaking] = useState(false);
 
   const totpInputRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
   const autoLoginAttempted = useRef(false);
 
   // Redirect if already authenticated
@@ -48,7 +48,6 @@ export function LoginPage() {
         navigate("/sessions", { replace: true });
       })
       .catch(() => {
-        // Refresh token expired — user must log in manually
         setLoading(false);
       });
   }, [refreshToken, isAuthenticated, setTokens, navigate]);
@@ -59,22 +58,19 @@ export function LoginPage() {
   }, []);
 
   const doLogin = useCallback(
-    async (pw: string, totp: string) => {
+    async (pw: string, totp?: string) => {
       setError("");
       setLoading(true);
 
       try {
-        const tokens = await apiClient.login(pw, totp, getDeviceName(), username || undefined);
+        const tokens = await apiClient.login(pw, totp || "", getDeviceName(), username || undefined);
 
         setTokens(tokens.accessToken, tokens.refreshToken);
 
-        // If not remembering, clear refresh token on tab close
         if (!rememberDevice) {
           window.addEventListener(
             "beforeunload",
-            () => {
-              useAuthStore.getState().logout();
-            },
+            () => { useAuthStore.getState().logout(); },
             { once: true },
           );
         }
@@ -82,9 +78,16 @@ export function LoginPage() {
         wsClient.connect(tokens.accessToken);
         navigate("/sessions", { replace: true });
       } catch (err) {
+        if (err instanceof ApiError && err.code === "TOTP_REQUIRED") {
+          // Server says this user has TOTP enabled — show the TOTP field
+          setNeedsTotp(true);
+          setLoading(false);
+          setTimeout(() => totpInputRef.current?.focus(), 100);
+          return;
+        }
+
         triggerShake();
         setTotpCode("");
-        totpInputRef.current?.focus();
 
         if (err instanceof ApiError) {
           setError(err.message);
@@ -95,7 +98,7 @@ export function LoginPage() {
         setLoading(false);
       }
     },
-    [rememberDevice, setTokens, navigate, triggerShake],
+    [username, rememberDevice, setTokens, navigate, triggerShake],
   );
 
   // Auto-submit when TOTP reaches 6 digits
@@ -110,7 +113,7 @@ export function LoginPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    void doLogin(password, totpCode);
+    void doLogin(password, totpCode || undefined);
   }
 
   return (
@@ -130,7 +133,7 @@ export function LoginPage() {
           <p className="text-sm text-text-muted">Sign in to your terminal</p>
         </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="rounded-lg bg-error/10 border border-error/20 px-3 py-2 text-sm text-error">
               {error}
@@ -178,25 +181,29 @@ export function LoginPage() {
             </div>
           </div>
 
-          {/* TOTP */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-text-secondary">
-              TOTP Code
-            </label>
-            <input
-              ref={totpInputRef}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              value={totpCode}
-              onChange={handleTotpChange}
-              className="w-full h-10 px-3 rounded-lg bg-surface-2 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent transition-colors font-mono tracking-widest text-center"
-              placeholder="000000"
-              required
-              autoComplete="one-time-code"
-            />
-          </div>
+          {/* TOTP — only shown when server requires it */}
+          {needsTotp && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-text-secondary">
+                Two-Factor Code
+              </label>
+              <input
+                ref={totpInputRef}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                value={totpCode}
+                onChange={handleTotpChange}
+                className="w-full h-10 px-3 rounded-lg bg-surface-2 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent transition-colors font-mono tracking-widest text-center"
+                placeholder="000000"
+                autoComplete="one-time-code"
+              />
+              <p className="text-xs text-text-dimmed">
+                Enter the 6-digit code from your authenticator app
+              </p>
+            </div>
+          )}
 
           {/* Remember device */}
           <label className="flex items-center gap-2 cursor-pointer">
