@@ -40,6 +40,7 @@ services:
       - NODE_ENV=production
       - DATA_DIR=/home/codemobile/.codemobile
       - CORS_ORIGINS=${CORS_ORIGINS:-https://code.gilbergarcia.com}
+      - SERVER_HOST=code.gilbergarcia.com
       # Remote Mac terminal access via SSH tunnel
       - REMOTE_SSH_HOST=localhost
       - REMOTE_SSH_PORT=2222
