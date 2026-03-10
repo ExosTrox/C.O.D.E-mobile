@@ -35,7 +35,7 @@ services:
       # SSH key for remote Mac access
       - /root/.ssh/id_ed25519_codemobile:/home/codemobile/.ssh/id_ed25519_codemobile:ro
     environment:
-      - PORT=80
+      - PORT=3000
       - HOST=0.0.0.0
       - NODE_ENV=production
       - DATA_DIR=/home/codemobile/.codemobile
