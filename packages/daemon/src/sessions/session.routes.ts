@@ -96,7 +96,8 @@ export function createSessionRoutes(sessionManager: SessionManager): Hono<Sessio
     return c.json(body);
   });
 
-  // ── DELETE /:id — stop session ──────────────────────────
+  // ── DELETE /:id — stop or delete session ────────────────
+  // ?permanent=true removes the session from DB entirely
   router.delete("/:id", async (c) => {
     const userId = c.get("user").sub;
     const id = c.req.param("id");
@@ -109,18 +110,25 @@ export function createSessionRoutes(sessionManager: SessionManager): Hono<Sessio
     }
     const session = sessionManager.getSession(id);
     if (!session) {
-      const body: ApiResponse<never> = {
-        success: false,
-        error: { code: "NOT_FOUND", message: "Session not found" },
-      };
-      return c.json(body, 404);
-    }
-
-    try {
-      await sessionManager.stopSession(id);
+      // Session doesn't exist — treat as success (idempotent)
       const body: ApiResponse<{ message: string }> = {
         success: true,
-        data: { message: "Session stopped" },
+        data: { message: "Session not found, already deleted" },
+      };
+      return c.json(body);
+    }
+
+    const permanent = c.req.query("permanent") === "true";
+
+    try {
+      if (permanent) {
+        await sessionManager.deleteSession(id);
+      } else {
+        await sessionManager.stopSession(id);
+      }
+      const body: ApiResponse<{ message: string }> = {
+        success: true,
+        data: { message: permanent ? "Session deleted" : "Session stopped" },
       };
       return c.json(body);
     } catch (err) {

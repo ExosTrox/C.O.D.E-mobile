@@ -296,6 +296,10 @@ export class ApiClient {
     return this.request<{ message: string }>("DELETE", `/sessions/${id}`);
   }
 
+  deleteSession(id: string) {
+    return this.request<{ message: string }>("DELETE", `/sessions/${id}?permanent=true`);
+  }
+
   sendInput(id: string, text: string) {
     return this.request<{ message: string }>("POST", `/sessions/${id}/input`, { text });
   }

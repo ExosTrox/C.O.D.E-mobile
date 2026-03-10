@@ -108,7 +108,7 @@ export function useDeleteSession() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => apiClient.stopSession(id),
+    mutationFn: (id: string) => apiClient.deleteSession(id),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: SESSIONS_KEY });
       const previous = queryClient.getQueriesData<Session[]>({ queryKey: SESSIONS_KEY });

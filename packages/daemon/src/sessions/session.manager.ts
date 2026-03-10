@@ -255,6 +255,41 @@ export class SessionManager {
     }
   }
 
+  // ── Delete ────────────────────────────────────────────────
+
+  /** Stop (if running) and permanently delete a session from DB. Never throws. */
+  async deleteSession(id: string): Promise<void> {
+    const row = this.getRow(id);
+    if (!row) return; // Already gone
+
+    // Stop if still running (best-effort, never throw)
+    if (row.status !== "stopped") {
+      try {
+        await this.stopSession(id);
+      } catch {
+        // Force DB update if stopSession somehow fails
+        try {
+          this.db.run(
+            "UPDATE sessions SET status = 'stopped', updated_at = unixepoch() WHERE id = ?",
+            [id],
+          );
+        } catch { /* ignore */ }
+      }
+    }
+
+    // Stop streamer if still active
+    const streamer = this.streamers.get(id);
+    if (streamer) {
+      streamer.stop();
+      this.streamers.delete(id);
+    }
+
+    // Delete from DB
+    try {
+      this.db.run("DELETE FROM sessions WHERE id = ?", [id]);
+    } catch { /* ignore */ }
+  }
+
   // ── I/O forwarding ────────────────────────────────────────
 
   async sendInput(id: string, text: string): Promise<void> {
