@@ -143,6 +143,7 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
   const fitAddonRef = useRef<FitAddon | null>(null);
   const fitRafRef = useRef<number | null>(null);
   const lastOffsetRef = useRef(0);
+  const webglAddonRef = useRef<InstanceType<typeof import("@xterm/addon-webgl").WebglAddon> | null>(null);
 
   const setTerminalSize = useSessionsStore((s) => s.setTerminalSize);
 
@@ -200,8 +201,12 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
       if (!terminalRef.current) return; // disposed
       try {
         const webglAddon = new WebglAddon();
-        webglAddon.onContextLoss(() => webglAddon.dispose());
+        webglAddon.onContextLoss(() => {
+          webglAddon.dispose();
+          webglAddonRef.current = null;
+        });
         term.loadAddon(webglAddon);
+        webglAddonRef.current = webglAddon;
       } catch {
         // WebGL not available
       }
@@ -262,6 +267,7 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
       term.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
+      webglAddonRef.current = null;
     };
     // Only recreate on sessionId change — settings applied live below
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -274,10 +280,35 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     if (!term) return;
     const theme = THEMES[termTheme] ?? THEMES["tokyo-night"];
     term.options.theme = theme;
+
     // Update container background to match theme
     if (containerRef.current) {
       containerRef.current.style.backgroundColor = theme?.background ?? "#1a1b26";
     }
+
+    // Force WebGL addon to pick up new colors by disposing and recreating
+    if (webglAddonRef.current) {
+      try {
+        webglAddonRef.current.dispose();
+        webglAddonRef.current = null;
+      } catch { /* ignore */ }
+
+      void import("@xterm/addon-webgl").then(({ WebglAddon }) => {
+        if (!terminalRef.current) return;
+        try {
+          const newWebgl = new WebglAddon();
+          newWebgl.onContextLoss(() => {
+            newWebgl.dispose();
+            webglAddonRef.current = null;
+          });
+          terminalRef.current.loadAddon(newWebgl);
+          webglAddonRef.current = newWebgl;
+        } catch { /* WebGL not available */ }
+      });
+    }
+
+    // Force full re-render of all rows
+    term.refresh(0, term.rows - 1);
   }, [termTheme]);
 
   // ── Apply font size changes live ──────────────────────────

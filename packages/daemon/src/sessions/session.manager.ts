@@ -205,7 +205,29 @@ export class SessionManager {
     if (!row) throw new Error("Session not found");
     if (row.status === "stopped") return;
 
+    // Always update DB first — ensures session can be stopped even if tmux/SSH fails
+    try {
+      this.db.run(
+        "UPDATE sessions SET status = 'stopped', updated_at = unixepoch() WHERE id = ?",
+        [id],
+      );
+    } catch {
+      // DB may have been closed already
+    }
+
+    // Stop streamer
+    const streamer = this.streamers.get(id);
+    if (streamer) {
+      streamer.stop();
+      this.streamers.delete(id);
+    }
+
+    // Stop analytics watching
+    this.analyticsService?.stopWatching(id);
+    this.analyticsService?.recordEvent(id, "session_stop", undefined, row.provider_id);
+
     // Graceful shutdown: Ctrl-C → wait → "exit" → wait → kill
+    // This runs after DB update so failures don't leave session stuck
     const tmux = this.getTmux(row.user_id ?? undefined);
     try {
       await tmux.sendKeys(row.tmux_name, "C-c");
@@ -221,35 +243,15 @@ export class SessionManager {
         await tmux.killSession(row.tmux_name);
       }
     } catch (err) {
-      // Session may have already exited or tmux server stopped
+      // Session may have already exited, tmux server stopped, or SSH tunnel down
+      // DB is already updated, so just log and continue
       if (err instanceof TmuxError) {
         if (err.code !== "SESSION_NOT_FOUND" && err.code !== "SERVER_NOT_RUNNING") {
-          throw err;
+          console.warn(`[SessionManager] tmux cleanup failed for ${id}: ${err.message}`);
         }
       } else {
-        throw err;
+        console.warn(`[SessionManager] tmux cleanup failed for ${id}:`, err);
       }
-    }
-
-    // Stop streamer
-    const streamer = this.streamers.get(id);
-    if (streamer) {
-      streamer.stop();
-      this.streamers.delete(id);
-    }
-
-    // Stop analytics watching
-    this.analyticsService?.stopWatching(id);
-    this.analyticsService?.recordEvent(id, "session_stop", undefined, row.provider_id);
-
-    // Update DB (may fail if DB was closed during shutdown)
-    try {
-      this.db.run(
-        "UPDATE sessions SET status = 'stopped', updated_at = unixepoch() WHERE id = ?",
-        [id],
-      );
-    } catch {
-      // DB may have been closed already
     }
   }
 
