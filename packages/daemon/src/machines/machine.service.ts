@@ -62,10 +62,13 @@ export class MachineService {
   private tmuxInstances = new Map<string, TmuxService>();
   private readonly db: Database;
   private readonly serverHost: string;
+  private readonly sshHost: string;
 
   constructor(db: Database, serverHost?: string) {
     this.db = db;
     this.serverHost = serverHost ?? process.env.SERVER_HOST ?? "localhost";
+    // SSH_HOST is the direct server IP (bypasses Cloudflare proxy which doesn't forward SSH)
+    this.sshHost = process.env.SSH_HOST ?? this.serverHost;
   }
 
   // ── Per-user TmuxService ────────────────────────────────
@@ -162,7 +165,7 @@ export class MachineService {
       [token, userId, sshPort, expiresAt],
     );
 
-    const pairingCommand = `curl -sSL https://${this.serverHost}/pair.sh | bash -s -- --server ${this.serverHost} --port ${sshPort} --token ${token}`;
+    const pairingCommand = `curl -sSL https://${this.serverHost}/pair.sh | bash -s -- --server ${this.serverHost} --ssh-host ${this.sshHost} --port ${sshPort} --token ${token}`;
 
     return { userId, sshPort, pairingToken: token, pairingCommand };
   }

@@ -43,6 +43,7 @@ services:
       - DATA_DIR=/home/codemobile/.codemobile
       - CORS_ORIGINS=${CORS_ORIGINS:-https://code.gilbergarcia.com}
       - SERVER_HOST=code.gilbergarcia.com
+      - SSH_HOST=5.161.125.115
       - AUTHORIZED_KEYS_FILE=/host-ssh/authorized_keys
       # Remote Mac terminal access via SSH tunnel
       - REMOTE_SSH_HOST=localhost

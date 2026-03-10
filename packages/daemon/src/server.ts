@@ -304,6 +304,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
 set -e
 
 SERVER=""
+SSH_HOST=""
 PORT=""
 TOKEN=""
 SSH_USER="$(whoami)"
@@ -311,6 +312,7 @@ SSH_USER="$(whoami)"
 while [[ $# -gt 0 ]]; do
   case $1 in
     --server) SERVER="$2"; shift 2;;
+    --ssh-host) SSH_HOST="$2"; shift 2;;
     --port) PORT="$2"; shift 2;;
     --token) TOKEN="$2"; shift 2;;
     *) echo "Unknown arg: $1"; exit 1;;
@@ -318,12 +320,18 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$SERVER" || -z "$PORT" || -z "$TOKEN" ]]; then
-  echo "Usage: bash pair.sh --server SERVER --port PORT --token TOKEN"
+  echo "Usage: bash pair.sh --server SERVER --ssh-host IP --port PORT --token TOKEN"
   exit 1
+fi
+
+# SSH_HOST is the direct IP for SSH (bypasses Cloudflare proxy)
+if [[ -z "$SSH_HOST" ]]; then
+  SSH_HOST="$SERVER"
 fi
 
 echo "=== CODE Mobile Machine Pairing ==="
 echo "Server: $SERVER"
+echo "SSH Host: $SSH_HOST"
 echo "Port: $PORT"
 echo "User: $SSH_USER"
 
@@ -396,7 +404,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
     <string>-o</string><string>StrictHostKeyChecking=no</string>
     <string>-R</string><string>$PORT:localhost:22</string>
     <string>-i</string><string>$KEY_FILE</string>
-    <string>root@$SERVER</string>
+    <string>root@$SSH_HOST</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -418,7 +426,7 @@ Description=CODE Mobile SSH Tunnel
 After=network-online.target
 
 [Service]
-ExecStart=$(which autossh) -M 0 -N -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -R $PORT:localhost:22 -i $KEY_FILE root@$SERVER
+ExecStart=$(which autossh) -M 0 -N -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -R $PORT:localhost:22 -i $KEY_FILE root@$SSH_HOST
 Restart=always
 RestartSec=10
 
