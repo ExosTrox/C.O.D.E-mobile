@@ -553,13 +553,20 @@ echo "You can access your terminal from https://$SERVER"
     // Try serving the exact file
     const file = Bun.file(filePath);
     if (await file.exists() && file.size > 0) {
+      // Cache hashed assets forever, but force revalidation for sw.js and index.html
+      let cacheControl: string;
+      if (reqPath.startsWith("/assets/")) {
+        cacheControl = "public, max-age=31536000, immutable";
+      } else if (reqPath === "/sw.js" || reqPath.endsWith(".html")) {
+        cacheControl = "no-cache, no-store, must-revalidate";
+      } else {
+        cacheControl = "public, max-age=0, must-revalidate";
+      }
       return new Response(file.stream(), {
         headers: {
           "Content-Type": getMimeType(reqPath),
           "Content-Length": String(file.size),
-          "Cache-Control": reqPath.startsWith("/assets/")
-            ? "public, max-age=31536000, immutable"
-            : "public, max-age=0, must-revalidate",
+          "Cache-Control": cacheControl,
         },
       });
     }
@@ -579,7 +586,10 @@ echo "You can access your terminal from https://$SERVER"
     const indexHtml = Bun.file(`${resolvedDistPath}/index.html`);
     if (await indexHtml.exists()) {
       return new Response(indexHtml.stream(), {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
       });
     }
 

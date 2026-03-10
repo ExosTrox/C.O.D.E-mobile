@@ -604,6 +604,34 @@ export function SettingsPage() {
               <span className="text-[11px] font-mono text-text-dimmed">v0.1.0</span>
             </Row>
 
+            <Row label="Build">
+              <span className="text-[11px] font-mono text-text-dimmed">
+                {__BUILD_TIMESTAMP__}
+              </span>
+            </Row>
+
+            <Row label="Cache">
+              <button
+                onClick={async () => {
+                  try {
+                    // Unregister all service workers
+                    const regs = await navigator.serviceWorker?.getRegistrations();
+                    for (const r of regs ?? []) await r.unregister();
+                    // Clear all caches
+                    const names = await caches.keys();
+                    for (const n of names) await caches.delete(n);
+                    toast.success("Cache cleared. Reloading...");
+                    setTimeout(() => window.location.reload(), 500);
+                  } catch {
+                    window.location.reload();
+                  }
+                }}
+                className="text-xs text-accent hover:underline"
+              >
+                Force Refresh
+              </button>
+            </Row>
+
             <Row label="Source Code">
               <a
                 href="https://github.com/nicholasareed/C.O.D.E-mobile"

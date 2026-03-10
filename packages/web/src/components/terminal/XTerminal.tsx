@@ -254,7 +254,10 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
       }
     };
 
-    // Wait for WS to be connected before subscribing
+    // Immediately fetch output via HTTP (most reliable — works even when WS is down)
+    void fetchOutputViaHttp();
+
+    // Also try WS for real-time streaming
     if (wsClient.connected) {
       trySubscribe();
     }
