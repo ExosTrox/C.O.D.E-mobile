@@ -12,7 +12,7 @@ export function Toggle({ checked, onChange, label, disabled }: ToggleProps) {
     <label
       className={cn(
         "inline-flex items-center gap-3 cursor-pointer",
-        disabled && "opacity-50 pointer-events-none",
+        disabled && "opacity-30 pointer-events-none",
       )}
     >
       <button
@@ -22,14 +22,14 @@ export function Toggle({ checked, onChange, label, disabled }: ToggleProps) {
         onClick={() => onChange(!checked)}
         disabled={disabled}
         className={cn(
-          "relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
-          checked ? "bg-accent" : "bg-surface-3",
+          "relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30",
+          checked ? "bg-accent shadow-sm shadow-accent/20" : "bg-surface-3/60",
         )}
       >
         <span
           className={cn(
-            "pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
+            "pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200",
             "translate-y-0.5",
             checked ? "translate-x-[22px]" : "translate-x-0.5",
           )}

@@ -111,19 +111,19 @@ export function ProviderDetail({ provider, apiKey, open, onClose }: ProviderDeta
       <div className="space-y-5">
         {/* ── Header accent ──────────────────────────── */}
         <div
-          className="h-1 w-12 rounded-full"
+          className="h-0.5 w-10 rounded-full opacity-50"
           style={{ backgroundColor: color }}
         />
 
         {/* ── Install command ────────────────────────── */}
         <div className="space-y-2">
-          <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider">Installation</h3>
+          <h3 className="text-[11px] font-medium text-text-dimmed uppercase tracking-wider">Installation</h3>
           <button
             onClick={handleCopyInstall}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-surface-2 border border-border hover:border-border-hover transition-colors text-left group"
+            className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-surface-2/40 border border-white/[0.04] hover:border-white/[0.06] transition-colors text-left group"
           >
             <Terminal className="h-3.5 w-3.5 text-text-dimmed shrink-0" />
-            <code className="text-xs text-text-secondary font-mono truncate flex-1">
+            <code className="text-[11px] text-text-secondary font-mono truncate flex-1">
               {provider.installCommand}
             </code>
             <Copy className="h-3.5 w-3.5 text-text-dimmed opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
@@ -133,20 +133,20 @@ export function ProviderDetail({ provider, apiKey, open, onClose }: ProviderDeta
         {/* ── API Key section ────────────────────────── */}
         {provider.requiresApiKey && (
           <div className="space-y-2">
-            <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider">API Key</h3>
+            <h3 className="text-[11px] font-medium text-text-dimmed uppercase tracking-wider">API Key</h3>
 
             {apiKey && !showKeyInput ? (
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-surface-2 border border-border">
+              <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-surface-2/40 border border-white/[0.04]">
                 <div className="flex items-center gap-2">
                   <Key className="h-3.5 w-3.5 text-success" />
                   <span className="text-sm text-text-secondary">
-                    Key configured <span className="font-mono text-text-muted">({maskKey(apiKey.id)})</span>
+                    Key configured <span className="font-mono text-text-dimmed">({maskKey(apiKey.id)})</span>
                   </span>
                 </div>
                 <button
                   onClick={handleDeleteKey}
                   disabled={deleteApiKey.isPending}
-                  className="p-1.5 rounded hover:bg-error/10 text-text-muted hover:text-error transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-error/8 text-text-dimmed hover:text-error transition-colors"
                 >
                   {deleteApiKey.isPending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -222,7 +222,7 @@ export function ProviderDetail({ provider, apiKey, open, onClose }: ProviderDeta
 
         {/* ── Models list ────────────────────────────── */}
         <div className="space-y-2">
-          <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider">
+          <h3 className="text-[11px] font-medium text-text-dimmed uppercase tracking-wider">
             Models ({provider.models.length})
           </h3>
           <div className="space-y-1.5">
@@ -230,9 +230,9 @@ export function ProviderDetail({ provider, apiKey, open, onClose }: ProviderDeta
               <div
                 key={model.id}
                 className={cn(
-                  "flex items-center justify-between px-3 py-2.5 rounded-lg",
-                  "bg-surface-2 border border-border",
-                  model.id === provider.defaultModel && "border-accent/30",
+                  "flex items-center justify-between px-3.5 py-2.5 rounded-xl",
+                  "bg-surface-2/40 border border-white/[0.04]",
+                  model.id === provider.defaultModel && "border-accent/20",
                 )}
               >
                 <div className="min-w-0">
@@ -242,15 +242,15 @@ export function ProviderDetail({ provider, apiKey, open, onClose }: ProviderDeta
                       <Badge variant="info">default</Badge>
                     )}
                   </div>
-                  <span className="text-xs text-text-muted">
+                  <span className="text-[11px] text-text-muted">
                     {formatContextWindow(model.contextWindow)} context
                   </span>
                 </div>
                 <div className="text-right shrink-0 ml-3">
-                  <div className="text-xs text-text-muted">
+                  <div className="text-[11px] text-text-muted">
                     {formatCost(model.costPer1kInput)}/1K in
                   </div>
-                  <div className="text-xs text-text-dimmed">
+                  <div className="text-[11px] text-text-dimmed">
                     {formatCost(model.costPer1kOutput)}/1K out
                   </div>
                 </div>

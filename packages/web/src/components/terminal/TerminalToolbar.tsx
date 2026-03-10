@@ -16,10 +16,10 @@ interface TerminalToolbarProps {
 
 interface KeyDef {
   label: string;
-  key?: string;      // tmux key name for sendKeys
-  input?: string;     // literal text for sendInput
-  ctrl?: string;      // ctrl combo: sends C-{letter}
-  wide?: boolean;     // wider button
+  key?: string;
+  input?: string;
+  ctrl?: string;
+  wide?: boolean;
 }
 
 const ROW_1: KeyDef[] = [
@@ -71,12 +71,10 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
 
   const sendKey = useCallback(
     (def: KeyDef) => {
-      // Haptic feedback
       if (navigator.vibrate) {
         navigator.vibrate(8);
       }
 
-      // Ctrl toggle
       if (def.key === "__CTRL__") {
         setCtrlActive((prev) => !prev);
         if (ctrlTimeoutRef.current) clearTimeout(ctrlTimeoutRef.current);
@@ -84,27 +82,23 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
         return;
       }
 
-      // Ctrl combo
       if (def.ctrl) {
         wsClient.sendKeys(sessionId, `C-${def.ctrl}`);
         setCtrlActive(false);
         return;
       }
 
-      // If Ctrl is toggled and this is a regular key
       if (ctrlActive && def.input && def.input.length === 1) {
         wsClient.sendKeys(sessionId, `C-${def.input}`);
         setCtrlActive(false);
         return;
       }
 
-      // Named key (arrow, tab, esc)
       if (def.key) {
         wsClient.sendKeys(sessionId, def.key);
         return;
       }
 
-      // Literal text
       if (def.input) {
         wsClient.sendInput(sessionId, def.input);
       }
@@ -132,7 +126,7 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
   }, []);
 
   return (
-    <div className="bg-surface-0 border-t border-border/60 safe-bottom select-none md:hidden">
+    <div className="bg-surface-0/80 backdrop-blur-2xl border-t border-white/[0.04] safe-bottom select-none md:hidden">
       {/* Expand/collapse toggle */}
       <button
         onClick={() => setExpanded(!expanded)}
@@ -142,7 +136,7 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
         {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
       </button>
 
-      {/* Row 1: always visible — keys + upload button */}
+      {/* Row 1: always visible */}
       <div className="flex gap-1 px-2 pb-1.5 overflow-x-auto scrollbar-none">
         {ROW_1.map((def) => (
           <ToolbarKey
@@ -163,18 +157,17 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
           disabled={uploading}
           className={cn(
             "shrink-0 h-9 px-2.5 min-w-[2.5rem] rounded-lg text-xs font-medium",
-            "bg-surface-2/80 border border-border/50",
+            "bg-surface-2/40 border border-white/[0.04]",
             "active:scale-95 transition-all duration-75",
             uploading
               ? "text-accent animate-pulse"
-              : "text-text-muted hover:text-text-secondary",
+              : "text-text-dimmed hover:text-text-muted",
           )}
           aria-label="Upload file"
         >
           <Upload className="h-3.5 w-3.5 mx-auto" />
         </button>
 
-        {/* Hidden file input */}
         <input
           ref={fileInputRef}
           type="file"
@@ -227,10 +220,10 @@ function ToolbarKey({
         "transition-all duration-75 active:scale-95",
         def.wide ? "px-3 min-w-[2.75rem]" : "px-2 min-w-[2rem]",
         isActive
-          ? "bg-accent/20 border border-accent/50 text-accent shadow-sm shadow-accent/10"
+          ? "bg-accent/15 border border-accent/30 text-accent shadow-sm shadow-accent/10"
           : def.ctrl
-            ? "bg-surface-2/60 border border-border/40 text-accent/80 hover:text-accent"
-            : "bg-surface-2/80 border border-border/50 text-text-secondary hover:text-text-primary",
+            ? "bg-surface-2/40 border border-white/[0.04] text-accent/70 hover:text-accent"
+            : "bg-surface-2/40 border border-white/[0.04] text-text-muted hover:text-text-primary",
       )}
     >
       {isCtrlToggle ? "Ctrl" : def.label}

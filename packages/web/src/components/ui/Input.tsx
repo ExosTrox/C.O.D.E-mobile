@@ -16,7 +16,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="space-y-1.5">
         {label && (
-          <label htmlFor={inputId} className="block text-xs font-medium text-text-muted">
+          <label htmlFor={inputId} className="block text-xs font-medium text-text-secondary">
             {label}
           </label>
         )}
@@ -26,11 +26,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             id={inputId}
             type={isPassword && showPassword ? "text" : type}
             className={cn(
-              "w-full h-11 px-3 rounded-lg bg-surface-2 border border-border text-sm text-text-primary",
+              "w-full h-11 px-4 rounded-xl bg-surface-2/60 border border-white/[0.04] text-sm text-text-primary",
               "placeholder:text-text-dimmed",
-              "focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent/50",
-              "transition-colors",
-              error && "border-error/50 focus:ring-error/30",
+              "focus:outline-none focus:border-accent/30 transition-all",
+              error && "border-error/30 focus:border-error/40",
               isPassword && "pr-10",
               className,
             )}
@@ -40,7 +39,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-text-muted hover:text-text-secondary"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-text-dimmed hover:text-text-muted transition-colors"
               tabIndex={-1}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

@@ -3,7 +3,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Plus, Terminal, Loader2 } from "lucide-react";
+import { Plus, Terminal, Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import type { SessionStatus } from "@code-mobile/core";
 import { Header } from "../components/layout/Header";
@@ -44,8 +44,6 @@ export function SessionsPage() {
   const stopSession = useStopSession();
   const deleteSession = useDeleteSession();
 
-  // ── Pull-to-refresh handlers ──────────────────────────────
-
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const el = listRef.current;
     const touch = e.touches[0];
@@ -74,8 +72,6 @@ export function SessionsPage() {
     touchStartY.current = null;
   }, [pullY, refetch]);
 
-  // ── Actions ───────────────────────────────────────────────
-
   const handleStop = useCallback(
     (id: string) => {
       stopSession.mutate(id, {
@@ -99,6 +95,7 @@ export function SessionsPage() {
   );
 
   const isEmpty = !isLoading && (!sessions || sessions.length === 0);
+  const runningCount = sessions?.filter((s) => s.status === "running" || s.status === "starting").length ?? 0;
 
   return (
     <>
@@ -116,13 +113,13 @@ export function SessionsPage() {
           {pulling && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
-              animate={{ height: pullY, opacity: pullY >= PULL_THRESHOLD ? 1 : 0.5 }}
+              animate={{ height: pullY, opacity: pullY >= PULL_THRESHOLD ? 1 : 0.4 }}
               exit={{ height: 0, opacity: 0 }}
               className="flex items-center justify-center overflow-hidden"
             >
               <Loader2
                 className={cn(
-                  "h-5 w-5 text-accent transition-transform",
+                  "h-4 w-4 text-accent transition-transform",
                   pullY >= PULL_THRESHOLD && "animate-spin",
                 )}
               />
@@ -130,125 +127,149 @@ export function SessionsPage() {
           )}
         </AnimatePresence>
 
-        {/* Refetch indicator (non-pull) */}
+        {/* Refetch indicator */}
         {isRefetching && !pulling && (
-          <div className="flex justify-center py-1">
-            <div className="h-0.5 w-16 bg-accent/30 rounded-full overflow-hidden">
+          <div className="flex justify-center py-1.5">
+            <div className="h-0.5 w-12 bg-accent/20 rounded-full overflow-hidden">
               <div className="h-full w-1/3 bg-accent rounded-full animate-pulse" />
             </div>
           </div>
         )}
 
         {/* Greeting + stats */}
-        <div className="px-4 pt-4 pb-1 space-y-2">
-          <h2 className="text-lg font-semibold text-text-primary">
-            Welcome back <span className="inline-block animate-[wave_1.8s_ease-in-out_infinite] origin-[70%_70%]">&#128075;</span>
-          </h2>
-          {sessions && sessions.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/10 text-success text-xs font-medium">
-                <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-                {sessions.filter((s) => s.status === "running" || s.status === "starting").length} running
-              </span>
-              <span className="text-xs text-text-dimmed">
-                {sessions.length} total session{sessions.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
+        <div className="px-5 pt-5 pb-2 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-text-primary tracking-tight">
+              Sessions
+            </h2>
+            {sessions && sessions.length > 0 && (
+              <div className="flex items-center gap-2">
+                {runningCount > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-success/8 text-success text-[11px] font-medium border border-success/10">
+                    <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+                    {runningCount} active
+                  </span>
+                )}
+                <span className="text-[11px] text-text-dimmed">
+                  {sessions.length} total
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Filter chips */}
-        <div className="flex gap-2 px-4 py-3">
-          {FILTERS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
-                filter === f.value
-                  ? "bg-accent/15 text-accent"
-                  : "bg-surface-2 text-text-muted hover:text-text-secondary hover:bg-surface-3",
-              )}
-            >
-              {f.label}
-              {f.value !== "all" && sessions && (
-                <span className="ml-1 opacity-60">
-                  {sessions.filter((s) =>
-                    f.value === "running"
-                      ? s.status === "running" || s.status === "starting"
-                      : s.status === "stopped" || s.status === "error",
-                  ).length}
-                </span>
-              )}
-            </button>
-          ))}
+        <div className="flex gap-1.5 px-5 py-2">
+          {FILTERS.map((f) => {
+            const count = f.value !== "all" && sessions
+              ? sessions.filter((s) =>
+                  f.value === "running"
+                    ? s.status === "running" || s.status === "starting"
+                    : s.status === "stopped" || s.status === "error",
+                ).length
+              : null;
+
+            return (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                  filter === f.value
+                    ? "bg-accent/10 text-accent border border-accent/15"
+                    : "text-text-muted hover:text-text-secondary hover:bg-surface-2/50 border border-transparent",
+                )}
+              >
+                {f.label}
+                {count !== null && count > 0 && (
+                  <span className="ml-1 opacity-50">{count}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Loading state */}
         {isLoading && (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 text-accent animate-spin" />
+            <div className="space-y-3 text-center">
+              <Loader2 className="h-5 w-5 text-accent animate-spin mx-auto" />
+              <p className="text-xs text-text-dimmed">Loading sessions</p>
+            </div>
           </div>
         )}
 
         {/* Empty state */}
         {isEmpty && (
-          <div className="flex-1 flex items-center justify-center px-4 py-16">
-            <div className="relative rounded-2xl p-[1px] bg-gradient-to-br from-accent via-purple-500/50 to-blue-500/30">
-              <div className="rounded-2xl bg-surface-1 px-8 py-10">
-                <div className="text-center space-y-4">
-                  <motion.div
-                    animate={{ y: [0, -6, 0] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                    className="h-16 w-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto"
-                  >
-                    <Terminal className="h-7 w-7 text-accent" />
-                  </motion.div>
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-semibold text-text-primary">
-                      No sessions yet
-                    </h2>
-                    <p className="text-sm text-text-muted max-w-xs">
-                      Create your first session to start coding with AI.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setModalOpen(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-accent text-surface-0 text-sm font-medium hover:bg-accent-hover transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Create your first session
-                  </button>
-                </div>
+          <div className="flex-1 flex items-center justify-center px-6 py-20">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="text-center space-y-6 max-w-xs"
+            >
+              <div className="relative mx-auto w-fit">
+                <motion.div
+                  animate={{ y: [0, -6, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  className="h-16 w-16 rounded-2xl bg-gradient-to-br from-accent/10 to-purple-500/5 flex items-center justify-center border border-accent/10"
+                >
+                  <Terminal className="h-7 w-7 text-accent" />
+                </motion.div>
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-2 bg-accent/5 rounded-full blur-md" />
               </div>
-            </div>
+              <div className="space-y-2">
+                <h3 className="text-base font-semibold text-text-primary">
+                  No sessions yet
+                </h3>
+                <p className="text-sm text-text-muted leading-relaxed">
+                  Start your first AI coding session to begin.
+                </p>
+              </div>
+              <button
+                onClick={() => setModalOpen(true)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-all hover:shadow-lg hover:shadow-accent/15 active:scale-[0.98]"
+              >
+                <Zap className="h-3.5 w-3.5" />
+                New Session
+              </button>
+            </motion.div>
           </div>
         )}
 
         {/* Session list */}
         {!isLoading && sessions && sessions.length > 0 && (
-          <div className="px-4 pb-24 space-y-2">
-            {sessions.map((session) => (
-              <SessionCard
+          <div className="px-4 pb-24 space-y-1.5 pt-1">
+            {sessions.map((session, i) => (
+              <motion.div
                 key={session.id}
-                session={session}
-                onStop={handleStop}
-                onDelete={handleDelete}
-              />
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03, duration: 0.3 }}
+              >
+                <SessionCard
+                  session={session}
+                  onStop={handleStop}
+                  onDelete={handleDelete}
+                />
+              </motion.div>
             ))}
           </div>
         )}
       </div>
 
-      {/* FAB — create new session */}
+      {/* FAB */}
       {!isEmpty && (
-        <button
+        <motion.button
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.3, type: "spring", stiffness: 300, damping: 20 }}
           onClick={() => setModalOpen(true)}
-          className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-40 h-14 w-14 rounded-full bg-accent text-surface-0 shadow-lg shadow-accent/25 flex items-center justify-center hover:bg-accent-hover active:scale-95 transition-all"
+          className="fixed bottom-20 right-5 md:bottom-6 md:right-6 z-40 h-13 w-13 rounded-2xl bg-accent text-white shadow-xl shadow-accent/20 flex items-center justify-center hover:bg-accent-hover active:scale-95 transition-all hover:shadow-accent/30"
           aria-label="New session"
         >
-          <Plus className="h-6 w-6" />
-        </button>
+          <Plus className="h-5 w-5" />
+        </motion.button>
       )}
 
       {/* New session modal */}

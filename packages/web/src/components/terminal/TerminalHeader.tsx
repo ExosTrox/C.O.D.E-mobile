@@ -39,12 +39,12 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 const PROVIDER_COLORS: Record<string, string> = {
-  "claude-code": "bg-[#d97706]/15 text-[#d97706]",
-  "openai-codex": "bg-[#10b981]/15 text-[#10b981]",
-  "gemini-cli": "bg-[#3b82f6]/15 text-[#3b82f6]",
-  deepseek: "bg-[#6366f1]/15 text-[#6366f1]",
-  openclaw: "bg-[#ec4899]/15 text-[#ec4899]",
-  shell: "bg-[#22d3ee]/15 text-[#22d3ee]",
+  "claude-code": "bg-amber-500/10 text-amber-400 border-amber-500/15",
+  "openai-codex": "bg-emerald-500/10 text-emerald-400 border-emerald-500/15",
+  "gemini-cli": "bg-blue-500/10 text-blue-400 border-blue-500/15",
+  deepseek: "bg-indigo-500/10 text-indigo-400 border-indigo-500/15",
+  openclaw: "bg-pink-500/10 text-pink-400 border-pink-500/15",
+  shell: "bg-cyan-500/10 text-cyan-400 border-cyan-500/15",
 };
 
 export function TerminalHeader({
@@ -61,7 +61,6 @@ export function TerminalHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return;
     const handler = (e: PointerEvent) => {
@@ -73,7 +72,6 @@ export function TerminalHeader({
     return () => document.removeEventListener("pointerdown", handler);
   }, [menuOpen]);
 
-  // Short model name
   const shortModel = model
     .replace(/^claude-/, "")
     .replace(/^gpt-/, "")
@@ -91,11 +89,11 @@ export function TerminalHeader({
   const StatusIcon = connectionStatus === "connected" ? Wifi : WifiOff;
 
   return (
-    <div className="flex items-center h-11 px-1 bg-surface-0 border-b border-border/60 gap-1 shrink-0">
+    <div className="flex items-center h-11 px-1 bg-surface-0/80 backdrop-blur-2xl border-b border-white/[0.04] gap-1 shrink-0">
       {/* Back button */}
       <button
         onClick={() => navigate("/sessions")}
-        className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors"
+        className="p-2 rounded-lg text-text-dimmed hover:text-text-primary hover:bg-surface-2/50 transition-colors"
         aria-label="Back to sessions"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -104,21 +102,21 @@ export function TerminalHeader({
       {/* Provider badge */}
       <div
         className={cn(
-          "flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold tracking-wide shrink-0",
-          PROVIDER_COLORS[providerId] ?? "bg-surface-2 text-text-secondary",
+          "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold tracking-wide shrink-0 border",
+          PROVIDER_COLORS[providerId] ?? "bg-surface-2/60 text-text-secondary border-white/[0.04]",
         )}
       >
         <span>{PROVIDER_LABELS[providerId] ?? providerId}</span>
-        <span className="opacity-50 font-normal">{shortModel}</span>
+        <span className="opacity-40 font-normal">{shortModel}</span>
       </div>
 
       {/* Session name */}
-      <span className="flex-1 text-xs text-text-muted truncate text-center px-1">
+      <span className="flex-1 text-[11px] text-text-dimmed truncate text-center px-1">
         {sessionName}
       </span>
 
       {/* Status */}
-      <div className="flex items-center gap-1 text-text-dimmed px-1">
+      <div className="flex items-center gap-1.5 text-text-dimmed px-1">
         <StatusIcon className="h-3 w-3" />
         <div className={cn("h-1.5 w-1.5 rounded-full", statusColor)} />
       </div>
@@ -127,14 +125,14 @@ export function TerminalHeader({
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className="p-2 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
+          className="p-2 rounded-lg text-text-dimmed hover:text-text-muted hover:bg-surface-2/50 transition-colors"
           aria-label="Terminal menu"
         >
           <MoreVertical className="h-4 w-4" />
         </button>
 
         {menuOpen && (
-          <div className="absolute right-0 top-full mt-1 w-48 rounded-xl bg-surface-1 border border-border/60 shadow-2xl z-50 py-1.5 overflow-hidden">
+          <div className="absolute right-0 top-full mt-1 w-48 rounded-xl bg-surface-1 border border-white/[0.06] shadow-2xl z-50 py-1.5 overflow-hidden">
             <MenuButton
               icon={Copy}
               label="Copy output"
@@ -162,7 +160,7 @@ export function TerminalHeader({
                 setMenuOpen(false);
               }}
             />
-            <div className="border-t border-border/40 my-1" />
+            <div className="border-t border-white/[0.04] my-1" />
             <MenuButton
               icon={Square}
               label="Stop session"
@@ -195,8 +193,8 @@ function MenuButton({
       className={cn(
         "flex items-center gap-2.5 w-full px-4 py-2.5 text-xs font-medium transition-colors",
         danger
-          ? "text-error hover:bg-error/10"
-          : "text-text-secondary hover:bg-surface-2 hover:text-text-primary",
+          ? "text-error hover:bg-error/8"
+          : "text-text-secondary hover:bg-surface-2/50 hover:text-text-primary",
       )}
     >
       <Icon className="h-3.5 w-3.5" />

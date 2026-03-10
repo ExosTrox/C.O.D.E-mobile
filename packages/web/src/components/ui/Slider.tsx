@@ -15,12 +15,12 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
         {(label || displayValue) && (
           <div className="flex items-center justify-between">
             {label && (
-              <label htmlFor={sliderId} className="text-xs font-medium text-text-muted">
+              <label htmlFor={sliderId} className="text-xs font-medium text-text-secondary">
                 {label}
               </label>
             )}
             {displayValue && (
-              <span className="text-xs font-mono text-text-secondary">{displayValue}</span>
+              <span className="text-xs font-mono text-text-muted">{displayValue}</span>
             )}
           </div>
         )}
@@ -29,12 +29,12 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
           id={sliderId}
           type="range"
           className={cn(
-            "w-full h-2 rounded-full appearance-none cursor-pointer",
-            "bg-surface-3 accent-accent",
-            "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5",
+            "w-full h-1.5 rounded-full appearance-none cursor-pointer",
+            "bg-surface-3/60 accent-accent",
+            "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4",
             "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent",
             "[&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-surface-0",
-            "[&::-webkit-slider-thumb]:shadow-md",
+            "[&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:shadow-accent/20",
             className,
           )}
           {...props}

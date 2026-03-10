@@ -22,13 +22,13 @@ interface NewSessionModalProps {
 
 // ── Provider card colors ────────────────────────────────────
 
-const PROVIDER_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  "claude-code": { bg: "bg-[#d97706]/10", text: "text-[#d97706]", border: "border-[#d97706]/30" },
-  "openai-codex": { bg: "bg-[#10b981]/10", text: "text-[#10b981]", border: "border-[#10b981]/30" },
-  "gemini-cli": { bg: "bg-[#3b82f6]/10", text: "text-[#3b82f6]", border: "border-[#3b82f6]/30" },
-  deepseek: { bg: "bg-[#6366f1]/10", text: "text-[#6366f1]", border: "border-[#6366f1]/30" },
-  openclaw: { bg: "bg-[#ec4899]/10", text: "text-[#ec4899]", border: "border-[#ec4899]/30" },
-  shell: { bg: "bg-[#22d3ee]/10", text: "text-[#22d3ee]", border: "border-[#22d3ee]/30" },
+const PROVIDER_COLORS: Record<string, { bg: string; text: string; border: string; gradient: string }> = {
+  "claude-code": { bg: "bg-amber-500/8", text: "text-amber-400", border: "border-amber-500/20", gradient: "from-amber-500/15 to-amber-600/5" },
+  "openai-codex": { bg: "bg-emerald-500/8", text: "text-emerald-400", border: "border-emerald-500/20", gradient: "from-emerald-500/15 to-emerald-600/5" },
+  "gemini-cli": { bg: "bg-blue-500/8", text: "text-blue-400", border: "border-blue-500/20", gradient: "from-blue-500/15 to-blue-600/5" },
+  deepseek: { bg: "bg-indigo-500/8", text: "text-indigo-400", border: "border-indigo-500/20", gradient: "from-indigo-500/15 to-indigo-600/5" },
+  openclaw: { bg: "bg-pink-500/8", text: "text-pink-400", border: "border-pink-500/20", gradient: "from-pink-500/15 to-pink-600/5" },
+  shell: { bg: "bg-cyan-500/8", text: "text-cyan-400", border: "border-cyan-500/20", gradient: "from-cyan-500/15 to-cyan-600/5" },
 };
 
 // ── Random name generator ───────────────────────────────────
@@ -58,14 +58,12 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [machinePaired, setMachinePaired] = useState<boolean | null>(null);
   const [checkingMachine, setCheckingMachine] = useState(false);
 
-  // Reset form on open + check machine status
   useEffect(() => {
     if (open) {
       setSelectedProvider(null);
       setSelectedModel("");
       setSessionName("");
       setWorkDir("~/projects");
-      // Check if user has a paired machine
       setCheckingMachine(true);
       apiClient.getMachineStatus()
         .then((status) => setMachinePaired(status.paired))
@@ -74,7 +72,6 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     }
   }, [open]);
 
-  // Auto-select default model when provider changes
   useEffect(() => {
     if (!selectedProvider || !providers) return;
     const p = providers.find((p) => p.id === selectedProvider);
@@ -83,7 +80,6 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     }
   }, [selectedProvider, providers]);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -93,7 +89,6 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  // Check if provider has an API key stored
   const hasApiKey = useCallback(
     (providerId: string) => {
       if (!apiKeys) return false;
@@ -102,7 +97,6 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     [apiKeys],
   );
 
-  // Get provider status
   const getProviderStatus = useCallback(
     (provider: ProviderConfig): "ready" | "needs-key" | "unavailable" => {
       if (provider.requiresApiKey && !hasApiKey(provider.id)) return "needs-key";
@@ -153,39 +147,37 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 bg-black/60 z-[55]"
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[55]"
             onClick={onClose}
           />
 
-          {/* Modal — bottom sheet on mobile, centered on desktop */}
+          {/* Modal */}
           <motion.div
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            transition={{ type: "spring", damping: 28, stiffness: 300 }}
             className={cn(
-              "fixed z-[60] bg-surface-1 border border-border/60 shadow-2xl overflow-y-auto",
-              // Mobile: bottom sheet — sits above the nav bar
+              "fixed z-[60] bg-surface-1 border border-white/[0.06] shadow-2xl overflow-y-auto",
               "inset-x-0 bottom-0 rounded-t-2xl max-h-[90vh]",
-              // Desktop: centered modal
               "md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2",
               "md:rounded-2xl md:w-full md:max-w-lg md:max-h-[80vh]",
             )}
           >
-            {/* Drag handle (mobile) */}
+            {/* Drag handle */}
             <div className="flex justify-center pt-3 pb-1 md:hidden">
               <div className="w-8 h-1 rounded-full bg-surface-3" />
             </div>
 
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3">
-              <h2 className="text-base font-semibold text-text-primary">
+              <h2 className="text-base font-semibold text-text-primary tracking-tight">
                 New Session
               </h2>
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-lg text-text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
+                className="p-1.5 rounded-lg text-text-dimmed hover:text-text-muted hover:bg-surface-2/50 transition-colors"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />
@@ -193,7 +185,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             </div>
 
             <form onSubmit={handleSubmit} className="px-5 pb-20 md:pb-5 space-y-5">
-              {/* Machine not paired — block session creation */}
+              {/* Machine check */}
               {checkingMachine && (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
@@ -201,21 +193,20 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
               )}
 
               {!checkingMachine && machinePaired === false && (
-                <div className="rounded-xl border-2 border-dashed border-warning/40 bg-warning/5 p-5 text-center space-y-3">
-                  <div className="h-12 w-12 rounded-full bg-warning/15 flex items-center justify-center mx-auto">
-                    <Monitor className="h-6 w-6 text-warning" />
+                <div className="rounded-xl border border-warning/15 bg-warning/5 p-5 text-center space-y-3">
+                  <div className="h-12 w-12 rounded-2xl bg-warning/10 flex items-center justify-center mx-auto border border-warning/10">
+                    <Monitor className="h-5 w-5 text-warning" />
                   </div>
                   <h3 className="text-sm font-semibold text-text-primary">
                     No machine paired
                   </h3>
                   <p className="text-xs text-text-muted leading-relaxed">
-                    You need to pair your computer before starting a session.
-                    Go to Settings to get your pairing command.
+                    Pair your computer in Settings to start sessions.
                   </p>
                   <Link
                     to="/settings"
                     onClick={onClose}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-surface-0 text-xs font-medium hover:bg-accent-hover transition-colors"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white text-xs font-medium hover:bg-accent-hover transition-all active:scale-[0.98]"
                   >
                     <Monitor className="h-3.5 w-3.5" />
                     Go to Settings
@@ -223,10 +214,10 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
                 </div>
               )}
 
-              {/* Provider selector — only show when machine is paired */}
+              {/* Provider selector */}
               {!checkingMachine && machinePaired !== false && (
               <>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <label className="text-xs font-medium text-text-secondary">
                   Provider
                 </label>
@@ -236,7 +227,8 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
                     const colors = PROVIDER_COLORS[p.id] ?? {
                       bg: "bg-surface-2",
                       text: "text-text-secondary",
-                      border: "border-border",
+                      border: "border-white/[0.04]",
+                      gradient: "from-surface-3 to-surface-2",
                     };
                     const isSelected = selectedProvider === p.id;
                     const isDisabled = pStatus === "unavailable";
@@ -248,32 +240,37 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
                         disabled={isDisabled}
                         onClick={() => setSelectedProvider(p.id)}
                         className={cn(
-                          "relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all",
+                          "relative flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200",
                           isSelected
-                            ? `${colors.bg} ${colors.border} ring-1 ring-offset-0 ring-current ${colors.text}`
-                            : "border-border hover:border-border-hover bg-surface-2 hover:bg-surface-3",
-                          isDisabled && "opacity-40 cursor-not-allowed",
+                            ? `${colors.bg} ${colors.border} ${colors.text}`
+                            : "border-white/[0.04] bg-surface-2/30 hover:bg-surface-2/50 hover:border-white/[0.06]",
+                          isDisabled && "opacity-30 cursor-not-allowed",
                         )}
                       >
-                        {/* Provider initial */}
-                        <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", colors.bg)}>
-                          <span className={cn("text-sm font-bold", colors.text)}>
+                        <div className={cn(
+                          "h-9 w-9 rounded-xl flex items-center justify-center bg-gradient-to-br border border-white/[0.04]",
+                          colors.gradient,
+                        )}>
+                          <span className={cn("text-sm font-bold", isSelected ? colors.text : "text-text-secondary")}>
                             {p.displayName.charAt(0)}
                           </span>
                         </div>
-                        <span className="text-xs font-medium text-text-primary">
+                        <span className={cn(
+                          "text-[11px] font-medium",
+                          isSelected ? "text-text-primary" : "text-text-muted",
+                        )}>
                           {p.displayName}
                         </span>
 
-                        {/* Status indicator */}
+                        {/* Status */}
                         <div className="absolute top-1.5 right-1.5">
                           {pStatus === "ready" && (
-                            <div className="h-4 w-4 rounded-full bg-success/20 flex items-center justify-center">
+                            <div className="h-4 w-4 rounded-full bg-success/15 flex items-center justify-center">
                               <Check className="h-2.5 w-2.5 text-success" />
                             </div>
                           )}
                           {pStatus === "needs-key" && (
-                            <div className="h-4 w-4 rounded-full bg-warning/20 flex items-center justify-center" title="API key required">
+                            <div className="h-4 w-4 rounded-full bg-warning/15 flex items-center justify-center" title="API key required">
                               <AlertTriangle className="h-2.5 w-2.5 text-warning" />
                             </div>
                           )}
@@ -284,21 +281,17 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
                 </div>
               </div>
 
-              {/* Model selector */}
+              {/* Model */}
               {selectedProviderConfig && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-secondary">
-                    Model
-                  </label>
+                  <label className="text-xs font-medium text-text-secondary">Model</label>
                   <select
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
-                    className="w-full h-10 px-3 rounded-lg bg-surface-2 border border-border text-text-primary text-sm focus:outline-none focus:border-accent transition-colors appearance-none"
+                    className="w-full h-11 px-4 rounded-xl bg-surface-2/60 border border-white/[0.04] text-text-primary text-sm focus:outline-none focus:border-accent/30 transition-all appearance-none"
                   >
                     {selectedProviderConfig.models.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
+                      <option key={m.id} value={m.id}>{m.name}</option>
                     ))}
                   </select>
                 </div>
@@ -306,15 +299,13 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
 
               {/* Session name */}
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">
-                  Session Name
-                </label>
+                <label className="text-xs font-medium text-text-secondary">Session Name</label>
                 <input
                   type="text"
                   value={sessionName}
                   onChange={(e) => setSessionName(e.target.value)}
                   placeholder={placeholder}
-                  className="w-full h-10 px-3 rounded-lg bg-surface-2 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent transition-colors"
+                  className="w-full h-11 px-4 rounded-xl bg-surface-2/60 border border-white/[0.04] text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent/30 transition-all"
                 />
               </div>
 
@@ -329,7 +320,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
                   value={workDir}
                   onChange={(e) => setWorkDir(e.target.value)}
                   placeholder="~/projects"
-                  className="w-full h-10 px-3 rounded-lg bg-surface-2 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent transition-colors font-mono"
+                  className="w-full h-11 px-4 rounded-xl bg-surface-2/60 border border-white/[0.04] text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent/30 transition-all font-mono"
                 />
               </div>
 
@@ -337,7 +328,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
               <button
                 type="submit"
                 disabled={!selectedProvider || createSession.isPending}
-                className="w-full h-11 rounded-lg bg-accent text-surface-0 font-medium text-sm hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full h-11 rounded-xl bg-accent text-white font-medium text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-accent-hover hover:shadow-lg hover:shadow-accent/15 active:scale-[0.98]"
               >
                 {createSession.isPending ? (
                   <>

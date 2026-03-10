@@ -8,7 +8,6 @@ import {
   Terminal,
   Info,
   LogOut,
-  Shield,
   Smartphone,
   ExternalLink,
   Github,
@@ -19,7 +18,6 @@ import {
   RefreshCw,
   Unlink,
   CheckCircle,
-  XCircle,
   Clock,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -49,12 +47,14 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       <div className="flex items-center gap-2 px-1">
-        <Icon className="h-4 w-4 text-text-muted" />
-        <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider">{title}</h3>
+        <Icon className="h-3.5 w-3.5 text-text-dimmed" />
+        <h3 className="text-[11px] font-medium text-text-dimmed uppercase tracking-wider">
+          {title}
+        </h3>
       </div>
-      <div className="rounded-xl bg-surface-1 border border-border divide-y divide-border overflow-hidden">
+      <div className="rounded-xl bg-surface-1/50 border border-white/[0.04] divide-y divide-white/[0.04] overflow-hidden">
         {children}
       </div>
     </div>
@@ -74,7 +74,9 @@ function Row({
     <div className="flex items-center justify-between px-4 py-3.5 min-h-[52px]">
       <div className="min-w-0 mr-3">
         <div className="text-sm text-text-primary">{label}</div>
-        {description && <div className="text-xs text-text-muted mt-0.5">{description}</div>}
+        {description && (
+          <div className="text-[11px] text-text-muted mt-0.5 truncate">{description}</div>
+        )}
       </div>
       {children && <div className="shrink-0">{children}</div>}
     </div>
@@ -265,21 +267,21 @@ function ActiveDevicesModal({ open, onClose }: { open: boolean; onClose: () => v
           devices.map((device) => (
             <div
               key={device.id}
-              className="flex items-center justify-between px-3 py-3 rounded-lg bg-surface-2 border border-border"
+              className="flex items-center justify-between px-3 py-3 rounded-xl bg-surface-2/40 border border-white/[0.04]"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <Smartphone className="h-4 w-4 text-text-muted shrink-0" />
                   <span className="text-sm text-text-primary truncate">{device.name}</span>
                 </div>
-                <span className="text-xs text-text-muted ml-6">
+                <span className="text-[11px] text-text-muted ml-6">
                   Last seen: {formatTime(device.lastSeen)}
                 </span>
               </div>
               <button
                 onClick={() => handleRevoke(device.id)}
                 disabled={revoking === device.id}
-                className="p-2 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors shrink-0"
+                className="p-2 rounded-lg hover:bg-error/8 text-text-dimmed hover:text-error transition-colors shrink-0"
               >
                 {revoking === device.id ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -313,7 +315,7 @@ function MachineSection() {
       const status = await apiClient.getMachineStatus();
       setMachine(status);
     } catch {
-      // Ignore — will show as not loaded
+      // Ignore
     }
   }, []);
 
@@ -371,19 +373,18 @@ function MachineSection() {
   }
 
   if (!machine || !machine.paired) {
-    // Not paired — show pairing instructions
     const pairingCmd = machine && !machine.paired ? machine.pairingCommand : null;
 
     return (
       <Section title="Machine" icon={Monitor}>
         <div className="px-4 py-4 space-y-4">
           <div className="flex items-start gap-3">
-            <div className="h-8 w-8 rounded-lg bg-warning/10 flex items-center justify-center shrink-0 mt-0.5">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-warning/15 to-warning/5 flex items-center justify-center shrink-0 border border-warning/10">
               <Clock className="h-4 w-4 text-warning" />
             </div>
             <div>
               <p className="text-sm font-medium text-text-primary">No machine paired</p>
-              <p className="text-xs text-text-muted mt-0.5">
+              <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">
                 Pair your computer to use the terminal. Run this command on your Mac or Linux machine:
               </p>
             </div>
@@ -392,12 +393,12 @@ function MachineSection() {
           {pairingCmd ? (
             <>
               <div className="relative">
-                <pre className="text-[11px] font-mono bg-surface-2 rounded-lg p-3 pr-10 overflow-x-auto text-text-secondary whitespace-pre-wrap break-all border border-border/50">
+                <pre className="text-[11px] font-mono bg-surface-2/40 rounded-xl p-3 pr-10 overflow-x-auto text-text-secondary whitespace-pre-wrap break-all border border-white/[0.04]">
                   {pairingCmd}
                 </pre>
                 <button
                   onClick={() => handleCopy(pairingCmd)}
-                  className="absolute top-2 right-2 p-1.5 rounded-md bg-surface-3/80 hover:bg-surface-3 text-text-muted hover:text-text-primary transition-colors"
+                  className="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-surface-3/60 hover:bg-surface-3 text-text-dimmed hover:text-text-primary transition-colors"
                   aria-label="Copy command"
                 >
                   {copied ? <CheckCircle className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
@@ -424,7 +425,7 @@ function MachineSection() {
     );
   }
 
-  // Paired — show status
+  // Paired
   const isOnline = machine.status === "online";
 
   return (
@@ -482,7 +483,7 @@ export function SettingsPage() {
       <Header title="Settings" />
 
       <div className="flex-1 overflow-y-auto pb-24">
-        <div className="px-4 py-4 space-y-6 max-w-2xl mx-auto">
+        <div className="px-5 py-5 space-y-6 max-w-2xl mx-auto">
           {/* ── Server ──────────────────────────────────── */}
           <Section title="Server" icon={Server}>
             <Row label="Server URL" description={serverUrl}>
@@ -496,7 +497,7 @@ export function SettingsPage() {
 
             {status === "connected" && latency !== null && (
               <Row label="Latency">
-                <span className="text-sm font-mono text-text-secondary">{latency}ms</span>
+                <span className="text-sm font-mono text-text-muted">{latency}ms</span>
               </Row>
             )}
 
@@ -504,7 +505,7 @@ export function SettingsPage() {
               {status === "checking" ? (
                 <Spinner size="sm" className="text-text-muted" />
               ) : (
-                <span className="text-sm font-mono text-text-secondary">
+                <span className="text-sm font-mono text-text-muted">
                   {version ?? "\u2014"}
                 </span>
               )}
@@ -600,7 +601,7 @@ export function SettingsPage() {
           {/* ── About ───────────────────────────────────── */}
           <Section title="About" icon={Info}>
             <Row label="CODE Mobile" description="AI Coding Agents on Mobile">
-              <span className="text-xs font-mono text-text-muted">v0.1.0</span>
+              <span className="text-[11px] font-mono text-text-dimmed">v0.1.0</span>
             </Row>
 
             <Row label="Source Code">
@@ -608,7 +609,7 @@ export function SettingsPage() {
                 href="https://github.com/nicholasareed/C.O.D.E-mobile"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
               >
                 <Github className="h-3.5 w-3.5" />
                 GitHub
