@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { wsClient } from "../services/ws";
-import { useAuthStore } from "../stores/auth.store";
+import { useAuthStore, getPersistedAuth } from "../stores/auth.store";
 import { useConnectionStore } from "../stores/connection.store";
 
 /**
@@ -37,9 +37,11 @@ export function useWs() {
   }, [setStatus, setLatency]);
 
   useEffect(() => {
-    if (accessToken) {
+    // Use zustand token, fall back to localStorage (zustand may not have hydrated yet)
+    const token = accessToken || getPersistedAuth().accessToken;
+    if (token) {
       setStatus("connecting");
-      wsClient.connect(accessToken);
+      wsClient.connect(token);
     } else {
       wsClient.disconnect();
       setStatus("disconnected");
