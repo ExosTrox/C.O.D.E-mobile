@@ -183,7 +183,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="px-5 pb-5 space-y-5">
+            <form onSubmit={handleSubmit} className="px-5 pb-20 md:pb-5 space-y-5">
               {/* Provider selector */}
               <div className="space-y-2">
                 <label className="text-xs font-medium text-text-secondary">
