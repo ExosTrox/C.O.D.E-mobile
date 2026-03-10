@@ -74,14 +74,14 @@ export class AppDatabase {
       .all()
       .map((r) => r.name);
 
+    // PRAGMA foreign_keys must be set outside transactions in SQLite
+    this.db.run("PRAGMA foreign_keys = OFF");
     this.db.transaction(() => {
-      // Disable FK checks temporarily for clean truncation
-      this.db.run("PRAGMA foreign_keys = OFF");
       for (const table of tables) {
         this.db.run(`DELETE FROM "${table}"`);
       }
-      this.db.run("PRAGMA foreign_keys = ON");
     })();
+    this.db.run("PRAGMA foreign_keys = ON");
 
     console.log(`  [DB] Reset complete — cleared ${tables.length} tables`);
   }
