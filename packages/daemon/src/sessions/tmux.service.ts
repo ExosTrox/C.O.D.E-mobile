@@ -1,5 +1,15 @@
 // ── TmuxService ─────────────────────────────────────────────
 // Low-level wrapper around the tmux CLI using Bun.spawn.
+// Supports remote execution via SSH tunnel.
+
+import type { Subprocess } from "bun";
+
+export interface RemoteSSHConfig {
+  host: string;       // e.g. "localhost"
+  port: number;       // e.g. 2222
+  user: string;       // e.g. "go"
+  identityFile: string; // e.g. "/root/.ssh/id_ed25519_codemobile"
+}
 
 export class TmuxError extends Error {
   constructor(
@@ -12,10 +22,29 @@ export class TmuxError extends Error {
 }
 
 export class TmuxService {
+  private readonly remote?: RemoteSSHConfig;
+  private tailProcesses = new Map<string, Subprocess>();
+
+  constructor(remote?: RemoteSSHConfig) {
+    this.remote = remote;
+  }
+
   // ── Core executor ─────────────────────────────────────────
 
   private async exec(args: string[]): Promise<string> {
-    const proc = Bun.spawn(["tmux", ...args], {
+    const cmd = this.remote
+      ? [
+          "ssh",
+          "-p", String(this.remote.port),
+          "-i", this.remote.identityFile,
+          "-o", "StrictHostKeyChecking=no",
+          "-o", "ConnectTimeout=5",
+          `${this.remote.user}@${this.remote.host}`,
+          "tmux", ...args,
+        ]
+      : ["tmux", ...args];
+
+    const proc = Bun.spawn(cmd, {
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -84,6 +113,22 @@ export class TmuxService {
 
   async killSession(name: string): Promise<void> {
     await this.exec(["kill-session", "-t", name]);
+    // Clean up remote tail process if any
+    const tailProc = this.tailProcesses.get(name);
+    if (tailProc) {
+      tailProc.kill();
+      this.tailProcesses.delete(name);
+    }
+    // Clean up remote log file
+    if (this.remote) {
+      Bun.spawn([
+        "ssh", "-p", String(this.remote.port),
+        "-i", this.remote.identityFile,
+        "-o", "StrictHostKeyChecking=no",
+        `${this.remote.user}@${this.remote.host}`,
+        "rm", "-f", `/tmp/cm-${name}.log`,
+      ]);
+    }
   }
 
   // ── I/O ───────────────────────────────────────────────────
@@ -148,10 +193,57 @@ export class TmuxService {
 
   /**
    * Pipe all terminal output from the pane to a file (append mode).
-   * This captures every byte written to the terminal.
+   * For remote sessions, pipes to a temp file on the remote host,
+   * then streams it back to the local file via SSH tail -f.
    */
   async pipePaneToFile(name: string, filePath: string): Promise<void> {
-    await this.exec(["pipe-pane", "-t", name, "-o", `cat >> ${shellEscape(filePath)}`]);
+    if (this.remote) {
+      // Pipe tmux output to a temp file on the Mac
+      const remoteLogPath = `/tmp/cm-${name}.log`;
+      await this.exec(["pipe-pane", "-t", name, "-o", `cat >> ${shellEscape(remoteLogPath)}`]);
+
+      // Ensure the remote file exists
+      Bun.spawn([
+        "ssh", "-p", String(this.remote.port),
+        "-i", this.remote.identityFile,
+        "-o", "StrictHostKeyChecking=no",
+        `${this.remote.user}@${this.remote.host}`,
+        "touch", remoteLogPath,
+      ]);
+
+      // Start a background SSH process to tail the remote file into the local file
+      const localFile = Bun.file(filePath);
+      const writer = localFile.writer();
+      const tailProc = Bun.spawn([
+        "ssh", "-p", String(this.remote.port),
+        "-i", this.remote.identityFile,
+        "-o", "StrictHostKeyChecking=no",
+        `${this.remote.user}@${this.remote.host}`,
+        "tail", "-f", "-c", "+0", remoteLogPath,
+      ], {
+        stdout: "pipe",
+        stderr: "ignore",
+      });
+
+      // Pipe remote tail output to local file
+      (async () => {
+        const reader = tailProc.stdout.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            writer.write(value);
+            writer.flush();
+          }
+        } catch {
+          // Connection lost or session ended
+        }
+      })();
+
+      this.tailProcesses.set(name, tailProc);
+    } else {
+      await this.exec(["pipe-pane", "-t", name, "-o", `cat >> ${shellEscape(filePath)}`]);
+    }
   }
 
   /** Check whether a specific session exists. */

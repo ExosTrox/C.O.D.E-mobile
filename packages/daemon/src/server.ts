@@ -13,6 +13,7 @@ import { BootstrapCodeService } from "./auth/bootstrap-code.service.js";
 import { createAuthRoutes } from "./auth/auth.routes.js";
 import { createAuthMiddleware } from "./auth/auth.middleware.js";
 import { TmuxService } from "./sessions/tmux.service.js";
+import type { RemoteSSHConfig } from "./sessions/tmux.service.js";
 import { SessionManager } from "./sessions/session.manager.js";
 import { createSessionRoutes } from "./sessions/session.routes.js";
 import { setupSessionWebSocket, stopKeepalive } from "./sessions/session.ws.js";
@@ -89,7 +90,16 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   const providerRegistry = createDefaultRegistry();
 
   // ── Initialize session services ────────────────────────────
-  const tmuxService = new TmuxService();
+  // Remote SSH config for Mac terminal access via reverse tunnel
+  const remoteSSH: RemoteSSHConfig | undefined = process.env.REMOTE_SSH_HOST
+    ? {
+        host: process.env.REMOTE_SSH_HOST ?? "localhost",
+        port: parseInt(process.env.REMOTE_SSH_PORT ?? "2222", 10),
+        user: process.env.REMOTE_SSH_USER ?? "go",
+        identityFile: process.env.REMOTE_SSH_KEY ?? "/root/.ssh/id_ed25519_codemobile",
+      }
+    : undefined;
+  const tmuxService = new TmuxService(remoteSSH);
   const sessionManager = new SessionManager(database.db, tmuxService, config.dataDir);
 
   // Wire services into session manager for provider resolution and analytics

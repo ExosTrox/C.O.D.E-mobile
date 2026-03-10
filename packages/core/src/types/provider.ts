@@ -3,7 +3,8 @@ export type ProviderId =
   | "openai-codex"
   | "gemini-cli"
   | "deepseek"
-  | "openclaw";
+  | "openclaw"
+  | "shell";
 
 export interface Model {
   id: string;

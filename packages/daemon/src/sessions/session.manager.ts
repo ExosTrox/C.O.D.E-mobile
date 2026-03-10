@@ -360,6 +360,8 @@ export class SessionManager {
         return { command: "deepseek", args: [] };
       case "openclaw":
         return { command: "openclaw", args: [] };
+      case "shell":
+        return { command: "bash", args: ["-l"] };
       default:
         throw new Error(`No spawn command for provider: ${providerId}`);
     }

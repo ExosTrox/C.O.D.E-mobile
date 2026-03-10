@@ -171,4 +171,24 @@ export const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     installCommand: "docker pull openclaw/openclaw:latest",
     checkCommand: "docker inspect openclaw/openclaw:latest",
   },
+  shell: {
+    id: "shell",
+    name: "shell",
+    displayName: "Terminal",
+    icon: "terminal",
+    models: [
+      {
+        id: "bash",
+        name: "Bash Shell",
+        contextWindow: 0,
+        maxOutput: 0,
+        costPer1kInput: 0,
+        costPer1kOutput: 0,
+      },
+    ],
+    defaultModel: "bash",
+    requiresApiKey: false,
+    installCommand: "",
+    checkCommand: "bash --version",
+  },
 };

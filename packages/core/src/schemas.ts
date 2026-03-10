@@ -10,6 +10,7 @@ export const ProviderIdSchema = z.enum([
   "gemini-cli",
   "deepseek",
   "openclaw",
+  "shell",
 ]);
 export type ProviderIdInferred = z.infer<typeof ProviderIdSchema>;
 

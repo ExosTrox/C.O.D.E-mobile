@@ -5,9 +5,12 @@
 #
 # Cloudflare setup:
 #   1. Add A record: code.gilbergarcia.com → 5.161.125.115 (orange cloud = proxied)
-#   2. SSL/TLS mode: Full
+#   2. SSL/TLS mode: Flexible
 #   3. WebSocket support is enabled by default in Cloudflare
 #   4. Optional: Page Rules to cache *.js, *.css, *.woff2 from /assets/*
+#
+# Uses host networking so the container can reach the SSH tunnel
+# on localhost:2222 (reverse tunnel from Mac).
 #
 # Usage:
 #   docker compose up -d          # start
@@ -23,40 +26,35 @@ services:
     container_name: codemobile-daemon
     tty: true
     stdin_open: true
-    ports:
-      - "80:3000"
+    network_mode: host
     volumes:
       # Persistent data (DB, sessions, hooks)
       - codemobile-data:/home/codemobile/.codemobile
       # Docker socket for OpenClaw container spawning
       - /var/run/docker.sock:/var/run/docker.sock
+      # SSH key for remote Mac access
+      - /root/.ssh/id_ed25519_codemobile:/home/codemobile/.ssh/id_ed25519_codemobile:ro
     environment:
-      - PORT=3000
+      - PORT=80
       - HOST=0.0.0.0
       - NODE_ENV=production
       - DATA_DIR=/home/codemobile/.codemobile
       - CORS_ORIGINS=${CORS_ORIGINS:-https://code.gilbergarcia.com}
+      # Remote Mac terminal access via SSH tunnel
+      - REMOTE_SSH_HOST=localhost
+      - REMOTE_SSH_PORT=2222
+      - REMOTE_SSH_USER=go
+      - REMOTE_SSH_KEY=/home/codemobile/.ssh/id_ed25519_codemobile
     restart: unless-stopped
     deploy:
       resources:
         limits:
           memory: 4G
-    networks:
-      - default
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-
-networks:
-  default:
-    driver: bridge
-  # Restricted network for OpenClaw containers
-  # Only allows outbound to LLM API endpoints
-  openclaw-net:
-    driver: bridge
-    internal: true
 
 volumes:
   codemobile-data:

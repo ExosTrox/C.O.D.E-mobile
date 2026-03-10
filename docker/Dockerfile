@@ -45,6 +45,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     ca-certificates \
+    openssh-client \
     python3 \
     python3-pip \
     python3-venv \
@@ -57,9 +58,10 @@ RUN npm install -g @anthropic-ai/claude-code @openai/codex @google/gemini-cli 2>
 # Install aider-chat via pip (for DeepSeek adapter)
 RUN python3 -m pip install --break-system-packages aider-chat 2>/dev/null || true
 
-# Create non-root user
+# Create non-root user with SSH dir
 RUN useradd -m -s /bin/bash codemobile \
   && mkdir -p /home/codemobile/.codemobile \
+  && mkdir -p /home/codemobile/.ssh \
   && chown -R codemobile:codemobile /home/codemobile
 
 WORKDIR /app
@@ -95,6 +97,6 @@ ENV PORT=3000 \
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -sf http://localhost:3000/health || exit 1
+  CMD curl -sf http://localhost:${PORT:-3000}/health || exit 1
 
 CMD ["bun", "run", "packages/daemon/src/index.ts"]
