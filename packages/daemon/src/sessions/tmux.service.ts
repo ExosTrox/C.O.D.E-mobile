@@ -212,8 +212,21 @@ export class TmuxService {
       // Don't use -o flag — it's a toggle that CLOSES the pipe if one already exists
       await this.exec(["pipe-pane", "-t", name, `cat >> ${shellEscape(remoteLogPath)}`]);
 
-      // Ensure the remote file exists
-      Bun.spawn(this.sshArgs(`touch ${shellEscape(remoteLogPath)}`));
+      // Capture the current pane content (e.g. shell prompt) that was output
+      // BEFORE pipe-pane was set up, and append it to the log file.
+      // Use >> to avoid overwriting any output pipe-pane may have already captured.
+      try {
+        const captureCmd = `tmux capture-pane -t ${shellEscape(name)} -p >> ${shellEscape(remoteLogPath)}`;
+        const proc = Bun.spawn(this.sshArgs(captureCmd), { stdout: "ignore", stderr: "ignore" });
+        await proc.exited;
+      } catch { /* ignore capture failure */ }
+
+      // Send Enter to trigger a fresh prompt that pipe-pane WILL capture
+      // (ensures there's visible output even if the shell was idle)
+      try {
+        await this.exec(["send-keys", "-t", name, ""]);
+        await this.exec(["send-keys", "-t", name, "Enter"]);
+      } catch { /* ignore */ }
 
       // Start tail and auto-restart on disconnect
       this.startTailPipe(name, remoteLogPath, filePath);
@@ -253,9 +266,19 @@ export class TmuxService {
 
     const tailProc = Bun.spawn(this.sshArgs(tailCmd), {
       stdout: "pipe",
-      stderr: "ignore",
+      stderr: "pipe",
     });
     this.tailProcesses.set(name, tailProc);
+
+    // Log stderr from tail process for debugging
+    (async () => {
+      try {
+        const stderr = await new Response(tailProc.stderr).text();
+        if (stderr.trim()) {
+          console.warn(`[TmuxService] tail stderr for ${name}: ${stderr.trim()}`);
+        }
+      } catch { /* ignore */ }
+    })();
 
     // Pipe remote tail output to local file
     (async () => {
@@ -270,6 +293,7 @@ export class TmuxService {
       } catch {
         // Connection lost or session ended
       }
+      console.warn(`[TmuxService] tail process exited for ${name}, scheduling restart`);
 
       // Tail process exited — schedule restart if session still active
       const restartTimer = setTimeout(async () => {
