@@ -200,11 +200,20 @@ export class ApiClient {
     );
   }
 
-  login(password: string, totpCode: string, deviceName: string) {
+  login(password: string, totpCode: string, deviceName: string, username?: string) {
     return this.request<AuthTokens>(
       "POST",
       "/auth/login",
-      { password, totpCode, deviceName },
+      { username, password, totpCode, deviceName },
+      true,
+    );
+  }
+
+  signup(username: string, password: string, deviceName: string) {
+    return this.request<AuthTokens & { userId: string; role: string }>(
+      "POST",
+      "/auth/signup",
+      { username, password, deviceName },
       true,
     );
   }
@@ -334,6 +343,26 @@ export class ApiClient {
       "/api-keys/validate",
       { providerId, apiKey },
     );
+  }
+
+  // ── Machine methods ──────────────────────────────────────
+
+  getMachineStatus() {
+    return this.request<
+      | { paired: false; pairingCommand: string }
+      | { paired: true; status: string; sshPort: number; label: string | null }
+    >("GET", "/machines/status");
+  }
+
+  generatePairingToken() {
+    return this.request<{ sshPort: number; pairingToken: string; pairingCommand: string }>(
+      "POST",
+      "/machines/pair-token",
+    );
+  }
+
+  unpairMachine() {
+    return this.request<{ message: string }>("POST", "/machines/unpair");
   }
 
   // ── File upload ────────────────────────────────────────

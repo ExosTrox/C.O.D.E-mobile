@@ -25,7 +25,9 @@ export default defineConfig({
         orientation: "any",
         start_url: "/",
         scope: "/",
+        id: "/",
         categories: ["developer", "productivity"],
+        prefer_related_applications: false,
         shortcuts: [
           {
             name: "New Session",
@@ -45,6 +47,22 @@ export default defineConfig({
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
           { src: "/icon-192x192.svg", sizes: "any", type: "image/svg+xml" },
         ],
+        screenshots: [
+          {
+            src: "/icons/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            form_factor: "wide",
+            label: "CODE Mobile Terminal",
+          },
+          {
+            src: "/icons/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            form_factor: "narrow",
+            label: "CODE Mobile Terminal",
+          },
+        ],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,woff2,png,ico}"],
@@ -52,7 +70,6 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//, /^\/ws/, /^\/internal\//],
         runtimeCaching: [
           {
-            // API calls: NetworkFirst with 5s timeout
             urlPattern: /^.*\/api\/.*/i,
             handler: "NetworkFirst",
             options: {
@@ -63,7 +80,6 @@ export default defineConfig({
             },
           },
           {
-            // Static assets: CacheFirst with 30-day expiry
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|eot)$/i,
             handler: "CacheFirst",
             options: {
@@ -76,6 +92,20 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    target: "esnext",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "xterm": ["@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-web-links"],
+          "xterm-webgl": ["@xterm/addon-webgl"],
+          "framer": ["framer-motion"],
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          "query": ["@tanstack/react-query"],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

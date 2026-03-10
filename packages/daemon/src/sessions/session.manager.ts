@@ -12,6 +12,7 @@ import { SessionStreamer } from "./session.streamer.js";
 import type { ProviderRegistry } from "@code-mobile/providers";
 import type { ApiKeyService } from "../apikeys/apikey.service.js";
 import type { AnalyticsService } from "../analytics/analytics.service.js";
+import type { MachineService } from "../machines/machine.service.js";
 
 // ── DB row shape ────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ interface SessionRow {
   work_dir: string;
   pid: number | null;
   conversation_id: string | null;
+  user_id: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -41,6 +43,7 @@ export class SessionManager {
     private readonly db: Database,
     private readonly tmux: TmuxService,
     private readonly dataDir: string,
+    private readonly machineService?: MachineService,
   ) {}
 
   /** Wire in optional services for provider adapter resolution and analytics. */
@@ -76,7 +79,16 @@ export class SessionManager {
 
   // ── Create ────────────────────────────────────────────────
 
-  async createSession(options: SessionCreateOptions): Promise<Session> {
+  /** Resolve the TmuxService for a given user. Falls back to the legacy global tmux. */
+  private getTmux(userId?: string): TmuxService {
+    if (userId && this.machineService) {
+      const userTmux = this.machineService.getTmuxForUser(userId);
+      if (userTmux) return userTmux;
+    }
+    return this.tmux;
+  }
+
+  async createSession(options: SessionCreateOptions, userId?: string): Promise<Session> {
     const id = crypto.randomUUID() as SessionId;
     const shortId = id.slice(0, 8);
     const tmuxName = `cm-${shortId}`;
@@ -144,11 +156,12 @@ export class SessionManager {
       TERM: "xterm-256color",
     };
 
-    // Create the tmux session
-    await this.tmux.createSession(tmuxName, command, args, env);
+    // Create the tmux session (per-user or legacy)
+    const tmux = this.getTmux(userId);
+    await tmux.createSession(tmuxName, command, args, env);
 
     // Pipe terminal output to file
-    await this.tmux.pipePaneToFile(tmuxName, outputPath);
+    await tmux.pipePaneToFile(tmuxName, outputPath);
 
     // Start streamer
     const streamer = new SessionStreamer(id, outputPath);
@@ -157,9 +170,9 @@ export class SessionManager {
 
     // Insert into DB
     this.db.run(
-      `INSERT INTO sessions (id, name, provider_id, model, status, tmux_name, work_dir, conversation_id)
-       VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`,
-      [id, name, options.providerId, model, tmuxName, workDir, options.conversationId ?? null],
+      `INSERT INTO sessions (id, name, provider_id, model, status, tmux_name, work_dir, conversation_id, user_id)
+       VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)`,
+      [id, name, options.providerId, model, tmuxName, workDir, options.conversationId ?? null, userId ?? null],
     );
 
     const row = this.db
@@ -185,18 +198,19 @@ export class SessionManager {
     if (row.status === "stopped") return;
 
     // Graceful shutdown: Ctrl-C → wait → "exit" → wait → kill
+    const tmux = this.getTmux(row.user_id ?? undefined);
     try {
-      await this.tmux.sendKeys(row.tmux_name, "C-c");
+      await tmux.sendKeys(row.tmux_name, "C-c");
       await sleep(3000);
 
-      if (await this.tmux.hasSession(row.tmux_name)) {
-        await this.tmux.sendText(row.tmux_name, "exit");
-        await this.tmux.sendKeys(row.tmux_name, "Enter");
+      if (await tmux.hasSession(row.tmux_name)) {
+        await tmux.sendText(row.tmux_name, "exit");
+        await tmux.sendKeys(row.tmux_name, "Enter");
         await sleep(2000);
       }
 
-      if (await this.tmux.hasSession(row.tmux_name)) {
-        await this.tmux.killSession(row.tmux_name);
+      if (await tmux.hasSession(row.tmux_name)) {
+        await tmux.killSession(row.tmux_name);
       }
     } catch (err) {
       // Session may have already exited or tmux server stopped
@@ -235,17 +249,20 @@ export class SessionManager {
 
   async sendInput(id: string, text: string): Promise<void> {
     const row = this.getRunningRow(id);
-    await this.tmux.sendText(row.tmux_name, text);
+    const tmux = this.getTmux(row.user_id ?? undefined);
+    await tmux.sendText(row.tmux_name, text);
   }
 
   async sendKeys(id: string, keys: string): Promise<void> {
     const row = this.getRunningRow(id);
-    await this.tmux.sendKeys(row.tmux_name, keys);
+    const tmux = this.getTmux(row.user_id ?? undefined);
+    await tmux.sendKeys(row.tmux_name, keys);
   }
 
   async resizeTerminal(id: string, cols: number, rows: number): Promise<void> {
     const row = this.getRunningRow(id);
-    await this.tmux.resizeWindow(row.tmux_name, cols, rows);
+    const tmux = this.getTmux(row.user_id ?? undefined);
+    await tmux.resizeWindow(row.tmux_name, cols, rows);
   }
 
   // ── Streamer access ───────────────────────────────────────
@@ -259,10 +276,15 @@ export class SessionManager {
   listSessions(
     status?: SessionStatus,
     providerId?: string,
+    userId?: string,
   ): Session[] {
     let sql = "SELECT * FROM sessions WHERE 1=1";
     const params: string[] = [];
 
+    if (userId) {
+      sql += " AND user_id = ?";
+      params.push(userId);
+    }
     if (status) {
       sql += " AND status = ?";
       params.push(status);
@@ -282,6 +304,15 @@ export class SessionManager {
   getSession(id: string): Session | null {
     const row = this.getRow(id);
     return row ? this.rowToSession(row) : null;
+  }
+
+  /** Check if a session belongs to a specific user. */
+  isSessionOwner(sessionId: string, userId: string): boolean {
+    const row = this.getRow(sessionId);
+    if (!row) return false;
+    // Legacy sessions without user_id are accessible to all (backward compat)
+    if (!row.user_id) return true;
+    return row.user_id === userId;
   }
 
   // ── Cleanup ───────────────────────────────────────────────

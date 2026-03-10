@@ -127,6 +127,15 @@ function handleClientMessage(
   msg: Record<string, unknown>,
   sessionManager: SessionManager,
 ): void {
+  // Ownership check for session-scoped messages
+  const sessionId = msg.sessionId as string | undefined;
+  if (sessionId && client.user) {
+    if (!sessionManager.isSessionOwner(sessionId, client.user.sub)) {
+      send(ws, { type: "error", message: "Session not found or access denied" });
+      return;
+    }
+  }
+
   switch (msg.type) {
     case "subscribe":
       handleSubscribe(client, ws, msg.sessionId as string, sessionManager, msg.offset as number | undefined);

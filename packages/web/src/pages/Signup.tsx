@@ -1,7 +1,7 @@
-// ── LoginPage ───────────────────────────────────────────────
-// Returning user login with TOTP, shake animation, remember device.
+// ── SignupPage ──────────────────────────────────────────────
+// Self-service account creation.
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Terminal, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuthStore } from "../stores/auth.store";
@@ -10,107 +10,61 @@ import { getDeviceName } from "../lib/device";
 import { wsClient } from "../services/ws";
 import { cn } from "../lib/cn";
 
-export function LoginPage() {
+export function SignupPage() {
   const navigate = useNavigate();
-  const { setTokens, refreshToken, isAuthenticated } = useAuthStore();
+  const { setTokens, isAuthenticated } = useAuthStore();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [totpCode, setTotpCode] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberDevice, setRememberDevice] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [shaking, setShaking] = useState(false);
 
-  const totpInputRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const autoLoginAttempted = useRef(false);
-
-  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
       navigate("/sessions", { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
-  // Auto-login with refresh token if device was remembered
-  useEffect(() => {
-    if (autoLoginAttempted.current || !refreshToken || isAuthenticated) return;
-    autoLoginAttempted.current = true;
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      setShaking(true);
+      setTimeout(() => setShaking(false), 500);
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      setShaking(true);
+      setTimeout(() => setShaking(false), 500);
+      return;
+    }
 
     setLoading(true);
-    apiClient
-      .refresh(refreshToken)
-      .then((tokens) => {
-        setTokens(tokens.accessToken, tokens.refreshToken);
-        wsClient.connect(tokens.accessToken);
-        navigate("/sessions", { replace: true });
-      })
-      .catch(() => {
-        // Refresh token expired — user must log in manually
-        setLoading(false);
-      });
-  }, [refreshToken, isAuthenticated, setTokens, navigate]);
 
-  const triggerShake = useCallback(() => {
-    setShaking(true);
-    setTimeout(() => setShaking(false), 500);
-  }, []);
+    try {
+      const result = await apiClient.signup(username, password, getDeviceName());
+      setTokens(result.accessToken, result.refreshToken);
+      wsClient.connect(result.accessToken);
+      navigate("/sessions", { replace: true });
+    } catch (err) {
+      setShaking(true);
+      setTimeout(() => setShaking(false), 500);
 
-  const doLogin = useCallback(
-    async (pw: string, totp: string) => {
-      setError("");
-      setLoading(true);
-
-      try {
-        const tokens = await apiClient.login(pw, totp, getDeviceName(), username || undefined);
-
-        setTokens(tokens.accessToken, tokens.refreshToken);
-
-        // If not remembering, clear refresh token on tab close
-        if (!rememberDevice) {
-          window.addEventListener(
-            "beforeunload",
-            () => {
-              useAuthStore.getState().logout();
-            },
-            { once: true },
-          );
-        }
-
-        wsClient.connect(tokens.accessToken);
-        navigate("/sessions", { replace: true });
-      } catch (err) {
-        triggerShake();
-        setTotpCode("");
-        totpInputRef.current?.focus();
-
-        if (err instanceof ApiError) {
-          setError(err.message);
-        } else {
-          setError("Connection failed. Is the server running?");
-        }
-      } finally {
-        setLoading(false);
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Connection failed. Is the server running?");
       }
-    },
-    [rememberDevice, setTokens, navigate, triggerShake],
-  );
-
-  // Auto-submit when TOTP reaches 6 digits
-  function handleTotpChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const value = e.target.value.replace(/\D/g, "");
-    setTotpCode(value);
-
-    if (value.length === 6 && password) {
-      void doLogin(password, value);
+    } finally {
+      setLoading(false);
     }
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    void doLogin(password, totpCode);
   }
 
   return (
@@ -126,11 +80,11 @@ export function LoginPage() {
           <div className="h-14 w-14 rounded-2xl bg-accent/20 flex items-center justify-center mx-auto">
             <Terminal className="h-7 w-7 text-accent" />
           </div>
-          <h1 className="text-xl font-bold text-text-primary">CODE Mobile</h1>
-          <p className="text-sm text-text-muted">Sign in to your terminal</p>
+          <h1 className="text-xl font-bold text-text-primary">Create Account</h1>
+          <p className="text-sm text-text-muted">Sign up for CODE Mobile</p>
         </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="rounded-lg bg-error/10 border border-error/20 px-3 py-2 text-sm text-error">
               {error}
@@ -147,10 +101,15 @@ export function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full h-10 px-3 rounded-lg bg-surface-2 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent transition-colors"
-              placeholder="Enter username"
+              placeholder="Choose a username"
+              required
+              minLength={3}
+              maxLength={30}
+              pattern="[a-zA-Z0-9_-]+"
               autoComplete="username"
               autoFocus
             />
+            <p className="text-[10px] text-text-dimmed">3-30 characters, letters, numbers, hyphens, underscores</p>
           </div>
 
           {/* Password */}
@@ -164,9 +123,10 @@ export function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full h-10 px-3 pr-10 rounded-lg bg-surface-2 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent transition-colors"
-                placeholder="Enter password"
+                placeholder="Create a password"
                 required
-                autoComplete="current-password"
+                minLength={8}
+                autoComplete="new-password"
               />
               <button
                 type="button"
@@ -178,36 +138,21 @@ export function LoginPage() {
             </div>
           </div>
 
-          {/* TOTP */}
+          {/* Confirm Password */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-text-secondary">
-              TOTP Code
+              Confirm Password
             </label>
             <input
-              ref={totpInputRef}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              value={totpCode}
-              onChange={handleTotpChange}
-              className="w-full h-10 px-3 rounded-lg bg-surface-2 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent transition-colors font-mono tracking-widest text-center"
-              placeholder="000000"
+              type={showPassword ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full h-10 px-3 rounded-lg bg-surface-2 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent transition-colors"
+              placeholder="Confirm your password"
               required
-              autoComplete="one-time-code"
+              autoComplete="new-password"
             />
           </div>
-
-          {/* Remember device */}
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={rememberDevice}
-              onChange={(e) => setRememberDevice(e.target.checked)}
-              className="h-4 w-4 rounded border-border bg-surface-2 text-accent focus:ring-accent focus:ring-offset-0"
-            />
-            <span className="text-xs text-text-muted">Remember this device</span>
-          </label>
 
           {/* Submit */}
           <button
@@ -218,10 +163,10 @@ export function LoginPage() {
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Signing in...
+                Creating account...
               </>
             ) : (
-              "Sign In"
+              "Sign Up"
             )}
           </button>
         </form>
@@ -230,10 +175,10 @@ export function LoginPage() {
         <div className="text-center space-y-2">
           <p>
             <Link
-              to="/signup"
+              to="/login"
               className="text-xs text-accent hover:text-accent-hover transition-colors"
             >
-              Don&apos;t have an account? Sign up
+              Already have an account? Sign in
             </Link>
           </p>
           <p>

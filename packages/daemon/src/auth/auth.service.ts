@@ -30,6 +30,7 @@ interface UserRow {
   username: string;
   password_hash: string;
   totp_secret: string | null;
+  role: string;
   created_at: number;
 }
 
@@ -122,11 +123,26 @@ export class AuthService {
     id: string,
     username: string,
     passwordHash: string,
+    role: string = "user",
   ): void {
     this.db.run(
-      "INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)",
-      [id, username, passwordHash],
+      "INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)",
+      [id, username, passwordHash, role],
     );
+  }
+
+  getUserRole(userId: string): string {
+    const row = this.db
+      .query<{ role: string }, [string]>("SELECT role FROM users WHERE id = ?")
+      .get(userId);
+    return row?.role ?? "user";
+  }
+
+  usernameExists(username: string): boolean {
+    const row = this.db
+      .query<{ count: number }, [string]>("SELECT COUNT(*) as count FROM users WHERE username = ?")
+      .get(username);
+    return (row?.count ?? 0) > 0;
   }
 
   getUserByUsername(username: string): UserRow | null {
@@ -326,7 +342,7 @@ export class AuthService {
 
     const userId = crypto.randomUUID();
     const passwordHash = await this.hashPassword(crypto.randomUUID()); // random unusable password
-    this.createUser(userId, "admin", passwordHash);
+    this.createUser(userId, "admin", passwordHash, "admin");
     return userId;
   }
 

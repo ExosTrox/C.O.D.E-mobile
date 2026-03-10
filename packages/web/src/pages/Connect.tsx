@@ -1,9 +1,10 @@
 // ── ConnectPage ─────────────────────────────────────────────
-// First screen: enter a bootstrap code or connect to a server.
+// Landing screen: auto-detects server, routes to signup/login.
+// Access code is a secondary option for admin-shared codes.
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { Terminal, Loader2, Wifi, KeyRound } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
+import { Terminal, Loader2, Wifi, KeyRound, UserPlus, LogIn } from "lucide-react";
 import { useAuthStore } from "../stores/auth.store";
 import { apiClient } from "../services/api";
 import { getDeviceName } from "../lib/device";
@@ -16,15 +17,16 @@ export function ConnectPage() {
   const navigate = useNavigate();
   const { setServerUrl, setSetupComplete, setTokens, isAuthenticated } = useAuthStore();
 
-  const [mode, setMode] = useState<"code" | "url">("code");
+  const [mode, setMode] = useState<"main" | "code" | "url">("main");
   const [codeChars, setCodeChars] = useState<string[]>(Array(CODE_LENGTH).fill(""));
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [autoChecking, setAutoChecking] = useState(true);
+  const [serverReady, setServerReady] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Auto-detect: if accessed on the server's own domain, skip to code entry
+  // Auto-detect: if accessed on the server's own domain, mark server ready
   useEffect(() => {
     if (isAuthenticated) {
       navigate("/sessions", { replace: true });
@@ -42,11 +44,8 @@ export function ConnectPage() {
       .then((health) => {
         setServerUrl(origin);
         apiClient.setServerUrl(origin);
-        if (health.isSetupComplete === false) {
-          setSetupComplete(true);
-        } else {
-          setSetupComplete(true);
-        }
+        setSetupComplete(health.isSetupComplete !== false);
+        setServerReady(true);
         setAutoChecking(false);
       })
       .catch(() => {
@@ -62,7 +61,6 @@ export function ConnectPage() {
       if (!cleaned) return;
 
       const next = [...codeChars];
-      // Handle paste of multiple characters
       if (cleaned.length > 1) {
         const chars = cleaned.slice(0, CODE_LENGTH).split("");
         chars.forEach((ch, i) => {
@@ -77,7 +75,6 @@ export function ConnectPage() {
       next[index] = cleaned[0] ?? "";
       setCodeChars(next);
 
-      // Auto-advance
       if (index < CODE_LENGTH - 1) {
         inputRefs.current[index + 1]?.focus();
       }
@@ -185,37 +182,6 @@ export function ConnectPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 connect-bg-animate relative">
-      {/* Background gradient animation via CSS */}
-      <style>{`
-        .connect-bg-animate {
-          background: linear-gradient(135deg, #0f0a1e 0%, #1a1035 25%, #0d1b2a 50%, #162447 75%, #0f0a1e 100%);
-          background-size: 400% 400%;
-          animation: connectGradient 15s ease infinite;
-        }
-        @keyframes connectGradient {
-          0% { background-position: 0% 50%; }
-          25% { background-position: 100% 0%; }
-          50% { background-position: 100% 100%; }
-          75% { background-position: 0% 100%; }
-          100% { background-position: 0% 50%; }
-        }
-        .icon-glow {
-          box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), 0 0 60px rgba(139, 92, 246, 0.2), 0 0 90px rgba(139, 92, 246, 0.1);
-          animation: iconPulse 3s ease-in-out infinite;
-        }
-        @keyframes iconPulse {
-          0%, 100% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), 0 0 60px rgba(139, 92, 246, 0.2); }
-          50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.6), 0 0 80px rgba(139, 92, 246, 0.3), 0 0 120px rgba(139, 92, 246, 0.15); }
-        }
-        .code-box {
-          transition: all 0.2s ease;
-        }
-        .code-box:focus {
-          border-color: #8b5cf6;
-          box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3), 0 0 20px rgba(139, 92, 246, 0.15);
-        }
-      `}</style>
-
       <div className="w-full max-w-sm space-y-8">
         {/* Branding */}
         <div className="text-center space-y-3">
@@ -225,38 +191,76 @@ export function ConnectPage() {
           <div className="space-y-1">
             <h1 className="text-2xl font-bold text-text-primary">CODE Mobile</h1>
             <p className="text-sm text-text-muted">
-              {mode === "code" ? "Enter your access code" : "Connect to your server"}
+              Your AI-powered terminal, everywhere.
             </p>
           </div>
         </div>
 
-        {/* Mode toggle */}
-        <div className="flex gap-1 p-1 rounded-lg bg-surface-1/60 backdrop-blur-sm">
-          <button
-            type="button"
-            onClick={() => { setMode("code"); setError(""); }}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-colors ${
-              mode === "code"
-                ? "bg-accent text-surface-0"
-                : "text-text-muted hover:text-text-secondary"
-            }`}
-          >
-            <KeyRound className="h-3.5 w-3.5" />
-            Access Code
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode("url"); setError(""); }}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-colors ${
-              mode === "url"
-                ? "bg-accent text-surface-0"
-                : "text-text-muted hover:text-text-secondary"
-            }`}
-          >
-            <Wifi className="h-3.5 w-3.5" />
-            Server URL
-          </button>
-        </div>
+        {/* Main view: Sign Up / Log In buttons */}
+        {mode === "main" && (
+          <div className="space-y-4">
+            {serverReady ? (
+              <>
+                {/* Primary actions */}
+                <Link
+                  to="/signup"
+                  className="w-full h-12 rounded-xl bg-accent text-surface-0 font-medium text-sm hover:bg-accent-hover transition-colors flex items-center justify-center gap-2"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Create Account
+                </Link>
+
+                <Link
+                  to="/login"
+                  className="w-full h-12 rounded-xl bg-surface-1/80 backdrop-blur-sm border border-border text-text-primary font-medium text-sm hover:bg-surface-2 transition-colors flex items-center justify-center gap-2"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Sign In
+                </Link>
+
+                {/* Secondary: access code */}
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border/50" />
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="px-2 text-text-dimmed" style={{ backgroundColor: "transparent" }}>or</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => { setMode("code"); setError(""); }}
+                  className="w-full h-10 rounded-lg bg-surface-2/50 backdrop-blur-sm text-text-muted font-medium text-xs hover:text-text-secondary hover:bg-surface-2 transition-colors flex items-center justify-center gap-2"
+                >
+                  <KeyRound className="h-3.5 w-3.5" />
+                  Have an access code?
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Server not detected — show URL input */}
+                <button
+                  type="button"
+                  onClick={() => setMode("url")}
+                  className="w-full h-12 rounded-xl bg-accent text-surface-0 font-medium text-sm hover:bg-accent-hover transition-colors flex items-center justify-center gap-2"
+                >
+                  <Wifi className="h-4 w-4" />
+                  Connect to Server
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setMode("code"); setError(""); }}
+                  className="w-full h-10 rounded-lg bg-surface-2/50 backdrop-blur-sm text-text-muted font-medium text-xs hover:text-text-secondary hover:bg-surface-2 transition-colors flex items-center justify-center gap-2"
+                >
+                  <KeyRound className="h-3.5 w-3.5" />
+                  Have an access code?
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -293,7 +297,7 @@ export function ConnectPage() {
                 ))}
               </div>
               <p className="text-xs text-text-dimmed text-center">
-                Get a code from OpenClaw on WhatsApp
+                Enter the code shared by your admin
               </p>
             </div>
 
@@ -310,6 +314,14 @@ export function ConnectPage() {
               ) : (
                 "Enter"
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setMode("main"); setError(""); }}
+              className="w-full text-xs text-text-dimmed hover:text-text-muted transition-colors py-1"
+            >
+              Back
             </button>
           </form>
         )}
@@ -349,6 +361,14 @@ export function ConnectPage() {
               ) : (
                 "Connect"
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setMode("main"); setError(""); }}
+              className="w-full text-xs text-text-dimmed hover:text-text-muted transition-colors py-1"
+            >
+              Back
             </button>
           </form>
         )}

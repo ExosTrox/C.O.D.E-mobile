@@ -143,9 +143,84 @@ export function createAuthRoutes(
     return c.json(body);
   });
 
+  // ── POST /signup ──────────────────────────────────────────
+  // Self-service signup: anyone can create an account
+  auth.post("/signup", async (c) => {
+    const { username, password, deviceName } = await c.req.json<{
+      username: string;
+      password: string;
+      deviceName: string;
+    }>();
+
+    if (!username || !password || !deviceName) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "username, password, and deviceName are required" },
+      };
+      return c.json(body, 400);
+    }
+
+    if (username.length < 3 || username.length > 30) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Username must be 3-30 characters" },
+      };
+      return c.json(body, 400);
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Username can only contain letters, numbers, hyphens, and underscores" },
+      };
+      return c.json(body, 400);
+    }
+
+    if (password.length < 8) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Password must be at least 8 characters" },
+      };
+      return c.json(body, 400);
+    }
+
+    if (authService.usernameExists(username)) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "USERNAME_TAKEN", message: "Username is already taken" },
+      };
+      return c.json(body, 409);
+    }
+
+    // Determine role: first user is admin
+    const role = authService.isFirstRun() ? "admin" : "user";
+
+    const userId = crypto.randomUUID();
+    const passwordHash = await authService.hashPassword(password);
+    authService.createUser(userId, username, passwordHash, role);
+
+    // Create device and generate tokens
+    const deviceId = crypto.randomUUID();
+    authService.createOrUpdateDevice(deviceId, userId, deviceName);
+    const tokens = await authService.generateTokens(userId, deviceId);
+
+    const body: ApiResponse<{
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+      userId: string;
+      role: string;
+    }> = {
+      success: true,
+      data: { ...tokens, userId, role },
+    };
+    return c.json(body, 201);
+  });
+
   // ── POST /login ───────────────────────────────────────────
   auth.post("/login", async (c) => {
-    const { password, totpCode, deviceName } = await c.req.json<{
+    const { username, password, totpCode, deviceName } = await c.req.json<{
+      username?: string;
       password: string;
       totpCode?: string;
       deviceName: string;
@@ -162,12 +237,15 @@ export function createAuthRoutes(
       return c.json(body, 400);
     }
 
-    // Single-user system: get the one configured user
-    const user = authService.getFirstUser();
+    // Multi-user: look up by username, or fall back to first user for backward compat
+    const user = username
+      ? authService.getUserByUsername(username)
+      : authService.getFirstUser();
+
     if (!user) {
       const body: ApiResponse<never> = {
         success: false,
-        error: { code: "NOT_SETUP", message: "No account configured. Run setup first." },
+        error: { code: "INVALID_CREDENTIALS", message: "Invalid username or password" },
       };
       return c.json(body, 401);
     }
@@ -180,7 +258,7 @@ export function createAuthRoutes(
     if (!passwordValid) {
       const body: ApiResponse<never> = {
         success: false,
-        error: { code: "INVALID_CREDENTIALS", message: "Invalid password" },
+        error: { code: "INVALID_CREDENTIALS", message: "Invalid username or password" },
       };
       return c.json(body, 401);
     }

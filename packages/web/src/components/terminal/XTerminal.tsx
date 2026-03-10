@@ -1,10 +1,9 @@
 // ── XTerminal ───────────────────────────────────────────────
 // Core terminal component — xterm.js with WebGL, WS streaming.
 
-import { useEffect, useRef, useCallback } from "react";
+import { memo, useEffect, useRef, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { WebglAddon } from "@xterm/addon-webgl";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { wsClient } from "../../services/ws";
 import { useSessionsStore } from "../../stores/sessions.store";
@@ -43,32 +42,37 @@ interface XTerminalProps {
   className?: string;
 }
 
-export function XTerminal({ sessionId, className }: XTerminalProps) {
+export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const lastOffsetRef = useRef(0);
+  const fitRafRef = useRef(0);
   const setTerminalSize = useSessionsStore((s) => s.setTerminalSize);
 
-  // ── Fit helper ────────────────────────────────────────────
+  // ── Debounced fit helper ──────────────────────────────────
 
   const doFit = useCallback(() => {
-    const fitAddon = fitAddonRef.current;
-    if (!fitAddon) return;
+    // Cancel any pending fit
+    if (fitRafRef.current) cancelAnimationFrame(fitRafRef.current);
 
-    try {
-      fitAddon.fit();
-    } catch {
-      // fitAddon may throw if container has zero dimensions
-      return;
-    }
+    fitRafRef.current = requestAnimationFrame(() => {
+      const fitAddon = fitAddonRef.current;
+      if (!fitAddon) return;
 
-    const term = terminalRef.current;
-    if (term) {
-      const { cols, rows } = term;
-      setTerminalSize(sessionId, cols, rows);
-      wsClient.sendResize(sessionId, cols, rows);
-    }
+      try {
+        fitAddon.fit();
+      } catch {
+        return;
+      }
+
+      const term = terminalRef.current;
+      if (term) {
+        const { cols, rows } = term;
+        setTerminalSize(sessionId, cols, rows);
+        wsClient.sendResize(sessionId, cols, rows);
+      }
+    });
   }, [sessionId, setTerminalSize]);
 
   // ── Initialize terminal ───────────────────────────────────
@@ -84,7 +88,7 @@ export function XTerminal({ sessionId, className }: XTerminalProps) {
       fontSize: 14,
       fontFamily: "'JetBrains Mono', monospace",
       theme: THEME,
-      scrollback: 10000,
+      scrollback: 5000,
       allowProposedApi: true,
       convertEol: true,
       drawBoldTextInBrightColors: true,
@@ -98,25 +102,23 @@ export function XTerminal({ sessionId, className }: XTerminalProps) {
     // Open terminal in container
     term.open(container);
 
-    // Try WebGL, fallback to canvas
-    try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose();
-      });
-      term.loadAddon(webglAddon);
-    } catch {
-      // WebGL not available — canvas renderer is the default
-    }
+    // Lazy-load WebGL addon for better performance
+    void import("@xterm/addon-webgl").then(({ WebglAddon }) => {
+      try {
+        const webglAddon = new WebglAddon();
+        webglAddon.onContextLoss(() => webglAddon.dispose());
+        term.loadAddon(webglAddon);
+      } catch {
+        // WebGL not available — canvas renderer is the default
+      }
+    });
 
     // Store refs
     terminalRef.current = term;
     fitAddonRef.current = fitAddon;
 
     // Initial fit
-    requestAnimationFrame(() => {
-      doFit();
-    });
+    requestAnimationFrame(() => doFit());
 
     // ── WS subscribe & output handling ──────────────────────
 
@@ -125,19 +127,16 @@ export function XTerminal({ sessionId, className }: XTerminalProps) {
 
     const handleOutput = (msg: { sessionId: string; data: string; offset: number }) => {
       if (msg.sessionId !== sessionId) return;
-      // Decode base64 output
       try {
         const bytes = atob(msg.data);
         term.write(bytes);
         lastOffsetRef.current = msg.offset + bytes.length;
       } catch {
-        // Fallback: write raw if not base64
         term.write(msg.data);
       }
     };
 
     const handleReconnect = () => {
-      // Re-subscribe on reconnection, requesting from last offset
       wsClient.subscribe(sessionId, lastOffsetRef.current);
     };
 
@@ -150,16 +149,15 @@ export function XTerminal({ sessionId, className }: XTerminalProps) {
       wsClient.sendInput(sessionId, data);
     });
 
-    // ── ResizeObserver ──────────────────────────────────────
+    // ── ResizeObserver (debounced via doFit) ─────────────────
 
-    const resizeObserver = new ResizeObserver(() => {
-      requestAnimationFrame(doFit);
-    });
+    const resizeObserver = new ResizeObserver(() => doFit());
     resizeObserver.observe(container);
 
     // ── Cleanup ─────────────────────────────────────────────
 
     return () => {
+      if (fitRafRef.current) cancelAnimationFrame(fitRafRef.current);
       resizeObserver.disconnect();
       dataDisposable.dispose();
       wsClient.off("output", handleOutput as never);
@@ -184,4 +182,4 @@ export function XTerminal({ sessionId, className }: XTerminalProps) {
       onClick={handleClick}
     />
   );
-}
+});

@@ -1,9 +1,8 @@
 // ── SessionCard ─────────────────────────────────────────────
 // Visual card for a single session with swipe actions and context menu.
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, memo } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import {
   Square,
   Trash2,
@@ -17,7 +16,6 @@ import { cn } from "../../lib/cn";
 
 interface SessionCardProps {
   session: Session;
-  index: number;
   onStop: (id: string) => void;
   onDelete: (id: string) => void;
 }
@@ -65,7 +63,7 @@ const ACTION_WIDTH = 160;
 
 // ── Component ───────────────────────────────────────────────
 
-export function SessionCard({ session, index, onStop, onDelete }: SessionCardProps) {
+export const SessionCard = memo(function SessionCard({ session, onStop, onDelete }: SessionCardProps) {
   const navigate = useNavigate();
   const [swipeX, setSwipeX] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -90,7 +88,7 @@ export function SessionCard({ session, index, onStop, onDelete }: SessionCardPro
         setMenuOpen(false);
       }
     };
-    document.addEventListener("pointerdown", handler);
+    document.addEventListener("pointerdown", handler, { passive: true });
     return () => document.removeEventListener("pointerdown", handler);
   }, [menuOpen]);
 
@@ -102,7 +100,6 @@ export function SessionCard({ session, index, onStop, onDelete }: SessionCardPro
     touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
     swiping.current = false;
 
-    // Long press detection
     longPressTimer.current = setTimeout(() => {
       longPressTimer.current = null;
       setMenuOpen(true);
@@ -116,20 +113,17 @@ export function SessionCard({ session, index, onStop, onDelete }: SessionCardPro
     const dx = touch.clientX - touchStartRef.current.x;
     const dy = touch.clientY - touchStartRef.current.y;
 
-    // Cancel long press on any movement
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
 
-    // Only start swipe if horizontal movement > vertical
     if (!swiping.current && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
       swiping.current = true;
     }
 
     if (swiping.current) {
       e.preventDefault();
-      // Only allow left swipe (negative dx), clamped
       const clamped = Math.max(-ACTION_WIDTH, Math.min(0, dx));
       setSwipeX(clamped);
     }
@@ -141,7 +135,6 @@ export function SessionCard({ session, index, onStop, onDelete }: SessionCardPro
       longPressTimer.current = null;
     }
 
-    // Snap to open or closed
     if (Math.abs(swipeX) > SWIPE_THRESHOLD) {
       setSwipeX(-ACTION_WIDTH);
     } else {
@@ -175,12 +168,7 @@ export function SessionCard({ session, index, onStop, onDelete }: SessionCardPro
   }, [session.id]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, delay: index * 0.05 }}
-      className="relative overflow-hidden rounded-xl"
-    >
+    <div className="relative overflow-hidden rounded-xl">
       {/* Swipe-reveal actions (behind the card) */}
       <div className="absolute inset-y-0 right-0 flex items-stretch md:hidden">
         {session.status === "running" && (
@@ -207,8 +195,11 @@ export function SessionCard({ session, index, onStop, onDelete }: SessionCardPro
 
       {/* Card content (slides on swipe) */}
       <div
-        className="relative bg-surface-1 border border-border rounded-xl p-3 cursor-pointer active:bg-surface-2 transition-colors"
-        style={{ transform: `translateX(${swipeX}px)`, transition: swiping.current ? "none" : "transform 0.2s ease-out" }}
+        className="relative bg-surface-1 border border-border rounded-xl p-3 cursor-pointer active:bg-surface-2 transition-colors will-change-transform"
+        style={{
+          transform: `translateX(${swipeX}px)`,
+          transition: swiping.current ? "none" : "transform 0.2s ease-out",
+        }}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         onTouchStart={handleTouchStart}
@@ -331,9 +322,9 @@ export function SessionCard({ session, index, onStop, onDelete }: SessionCardPro
           </div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
-}
+});
 
 // ── MenuAction ──────────────────────────────────────────────
 

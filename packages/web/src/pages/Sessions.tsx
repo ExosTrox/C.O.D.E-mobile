@@ -2,7 +2,7 @@
 // Sessions list with filter chips, pull-to-refresh, and FAB.
 
 import { useState, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Plus, Terminal, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { SessionStatus } from "@code-mobile/core";
@@ -157,17 +157,6 @@ export function SessionsPage() {
           )}
         </div>
 
-        <style>{`
-          @keyframes wave {
-            0%, 60%, 100% { transform: rotate(0deg); }
-            10% { transform: rotate(14deg); }
-            20% { transform: rotate(-8deg); }
-            30% { transform: rotate(14deg); }
-            40% { transform: rotate(-4deg); }
-            50% { transform: rotate(10deg); }
-          }
-        `}</style>
-
         {/* Filter chips */}
         <div className="flex gap-2 px-4 py-3">
           {FILTERS.map((f) => (
@@ -239,11 +228,10 @@ export function SessionsPage() {
         {/* Session list */}
         {!isLoading && sessions && sessions.length > 0 && (
           <div className="px-4 pb-24 space-y-2">
-            {sessions.map((session, i) => (
+            {sessions.map((session) => (
               <SessionCard
                 key={session.id}
                 session={session}
-                index={i}
                 onStop={handleStop}
                 onDelete={handleDelete}
               />

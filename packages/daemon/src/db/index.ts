@@ -65,6 +65,27 @@ export class AppDatabase {
     return row?.count ?? 0;
   }
 
+  /** Delete all user data. Keeps schema intact. */
+  resetAllData(): void {
+    const tables = this.db
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_migrations' AND name NOT LIKE 'sqlite_%'",
+      )
+      .all()
+      .map((r) => r.name);
+
+    this.db.transaction(() => {
+      // Disable FK checks temporarily for clean truncation
+      this.db.run("PRAGMA foreign_keys = OFF");
+      for (const table of tables) {
+        this.db.run(`DELETE FROM "${table}"`);
+      }
+      this.db.run("PRAGMA foreign_keys = ON");
+    })();
+
+    console.log(`  [DB] Reset complete — cleared ${tables.length} tables`);
+  }
+
   close(): void {
     this.db.close();
   }

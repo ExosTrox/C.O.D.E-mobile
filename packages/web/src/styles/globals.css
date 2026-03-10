@@ -135,6 +135,62 @@ body {
   20%, 40%, 60%, 80% { transform: translateX(4px); }
 }
 
+/* ── Wave animation for greeting emoji ────────────────────── */
+
+@keyframes wave {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(14deg); }
+  20% { transform: rotate(-8deg); }
+  30% { transform: rotate(14deg); }
+  40% { transform: rotate(-4deg); }
+  50% { transform: rotate(10deg); }
+}
+
+/* ── Connect page animated gradient background ────────────── */
+
+.connect-bg-animate {
+  background: linear-gradient(135deg, #0f0a1e 0%, #1a1035 25%, #0d1b2a 50%, #162447 75%, #0f0a1e 100%);
+  background-size: 400% 400%;
+  animation: connectGradient 15s ease infinite;
+}
+
+@keyframes connectGradient {
+  0% { background-position: 0% 50%; }
+  25% { background-position: 100% 0%; }
+  50% { background-position: 100% 100%; }
+  75% { background-position: 0% 100%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Connect page icon glow ───────────────────────────────── */
+
+.icon-glow {
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), 0 0 60px rgba(139, 92, 246, 0.2), 0 0 90px rgba(139, 92, 246, 0.1);
+  animation: iconPulse 3s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+  0%, 100% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), 0 0 60px rgba(139, 92, 246, 0.2); }
+  50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.6), 0 0 80px rgba(139, 92, 246, 0.3), 0 0 120px rgba(139, 92, 246, 0.15); }
+}
+
+/* ── Code input box focus glow ────────────────────────────── */
+
+.code-box {
+  transition: all 0.2s ease;
+}
+
+.code-box:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3), 0 0 20px rgba(139, 92, 246, 0.15);
+}
+
+/* ── GPU-accelerated transitions ──────────────────────────── */
+
+.will-change-transform {
+  will-change: transform;
+}
+
 /* ── Safe-area insets for PWA standalone ─────────────────── */
 
 @supports (padding-top: env(safe-area-inset-top)) {

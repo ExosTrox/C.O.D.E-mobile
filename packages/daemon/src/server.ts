@@ -27,6 +27,8 @@ import { createNotificationRoutes } from "./notifications/notification.routes.js
 import { ApiKeyService } from "./apikeys/apikey.service.js";
 import { createApiKeyRoutes } from "./apikeys/apikey.routes.js";
 import { createFileRoutes } from "./files/files.routes.js";
+import { MachineService } from "./machines/machine.service.js";
+import { createMachineRoutes } from "./machines/machine.routes.js";
 import { createDefaultRegistry } from "@code-mobile/providers";
 import { createProviderRoutes } from "./providers/provider.routes.js";
 
@@ -46,6 +48,8 @@ const PUBLIC_PATHS = [
   "/internal/hooks/",
   "/internal/generate-code",
   "/api/v1/notifications/vapid-key",
+  "/api/v1/machines/pair",
+  "/pair.sh",
   "/assets/",
   "/manifest.json",
   "/sw.js",
@@ -90,8 +94,11 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   // ── Initialize provider registry ───────────────────────
   const providerRegistry = createDefaultRegistry();
 
+  // ── Initialize machine service (multi-user SSH tunnels) ────
+  const machineService = new MachineService(database.db);
+
   // ── Initialize session services ────────────────────────────
-  // Remote SSH config for Mac terminal access via reverse tunnel
+  // Legacy single-user SSH config (backward compat for admin)
   const remoteSSH: RemoteSSHConfig | undefined = process.env.REMOTE_SSH_HOST
     ? {
         host: process.env.REMOTE_SSH_HOST ?? "localhost",
@@ -100,8 +107,8 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
         identityFile: process.env.REMOTE_SSH_KEY ?? "/root/.ssh/id_ed25519_codemobile",
       }
     : undefined;
-  const tmuxService = new TmuxService(remoteSSH);
-  const sessionManager = new SessionManager(database.db, tmuxService, config.dataDir);
+  const fallbackTmux = new TmuxService(remoteSSH);
+  const sessionManager = new SessionManager(database.db, fallbackTmux, config.dataDir, machineService);
 
   // Wire services into session manager for provider resolution and analytics
   sessionManager.setServices(providerRegistry, apiKeyService, analyticsService);
@@ -283,7 +290,157 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   app.route("/api/v1/api-keys", createApiKeyRoutes(apiKeyService));
 
   // File upload routes
-  app.route("/api/v1/files", createFileRoutes(remoteSSH));
+  app.route("/api/v1/files", createFileRoutes(machineService, remoteSSH));
+
+  // Machine pairing routes
+  app.route("/api/v1/machines", createMachineRoutes(machineService));
+
+  // ── Pairing script (public, served as shell script) ────────
+  app.get("/pair.sh", (c) => {
+    const script = `#!/bin/bash
+# CODE Mobile — Machine Pairing Script
+# Usage: curl -sSL https://SERVER/pair.sh | bash -s -- --server SERVER --port PORT --token TOKEN
+
+set -e
+
+SERVER=""
+PORT=""
+TOKEN=""
+SSH_USER="$(whoami)"
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --server) SERVER="$2"; shift 2;;
+    --port) PORT="$2"; shift 2;;
+    --token) TOKEN="$2"; shift 2;;
+    *) echo "Unknown arg: $1"; exit 1;;
+  esac
+done
+
+if [[ -z "$SERVER" || -z "$PORT" || -z "$TOKEN" ]]; then
+  echo "Usage: bash pair.sh --server SERVER --port PORT --token TOKEN"
+  exit 1
+fi
+
+echo "=== CODE Mobile Machine Pairing ==="
+echo "Server: $SERVER"
+echo "Port: $PORT"
+echo "User: $SSH_USER"
+
+# 1. Generate SSH key if needed
+KEY_DIR="$HOME/.ssh"
+KEY_FILE="$KEY_DIR/id_ed25519_codemobile"
+mkdir -p "$KEY_DIR" && chmod 700 "$KEY_DIR"
+
+if [[ ! -f "$KEY_FILE" ]]; then
+  echo "Generating SSH key..."
+  ssh-keygen -t ed25519 -f "$KEY_FILE" -N "" -C "codemobile-pairing"
+fi
+
+# 2. Add server's public key to authorized_keys
+echo "Fetching server public key..."
+SERVER_KEY=$(curl -sSL "https://$SERVER/api/v1/machines/server-key" 2>/dev/null || echo "")
+if [[ -n "$SERVER_KEY" ]]; then
+  if ! grep -qF "$SERVER_KEY" "$KEY_DIR/authorized_keys" 2>/dev/null; then
+    echo "$SERVER_KEY" >> "$KEY_DIR/authorized_keys"
+    chmod 600 "$KEY_DIR/authorized_keys"
+    echo "Server key added to authorized_keys"
+  fi
+fi
+
+# 3. Complete pairing via API
+echo "Completing pairing..."
+RESULT=$(curl -sS -X POST "https://$SERVER/api/v1/machines/pair" \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"token\\": \\"$TOKEN\\", \\"sshUser\\": \\"$SSH_USER\\"}")
+
+if echo "$RESULT" | grep -q '"success":true'; then
+  echo "Pairing successful!"
+else
+  echo "Pairing failed: $RESULT"
+  exit 1
+fi
+
+# 4. Set up persistent reverse SSH tunnel
+echo "Setting up reverse SSH tunnel on port $PORT..."
+
+# Install autossh if not present
+if ! command -v autossh &>/dev/null; then
+  if command -v brew &>/dev/null; then
+    brew install autossh
+  elif command -v apt-get &>/dev/null; then
+    sudo apt-get install -y autossh
+  else
+    echo "Please install autossh manually"
+    exit 1
+  fi
+fi
+
+# Create launchd plist (macOS) or systemd service (Linux)
+if [[ "$(uname)" == "Darwin" ]]; then
+  PLIST="$HOME/Library/LaunchAgents/com.codemobile.tunnel.plist"
+  cat > "$PLIST" << PLIST_EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.codemobile.tunnel</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$(which autossh)</string>
+    <string>-M</string><string>0</string>
+    <string>-N</string>
+    <string>-o</string><string>ServerAliveInterval=30</string>
+    <string>-o</string><string>ServerAliveCountMax=3</string>
+    <string>-o</string><string>StrictHostKeyChecking=no</string>
+    <string>-R</string><string>$PORT:localhost:22</string>
+    <string>-i</string><string>$KEY_FILE</string>
+    <string>root@$SERVER</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardErrorPath</key><string>/tmp/codemobile-tunnel.err</string>
+  <key>StandardOutPath</key><string>/tmp/codemobile-tunnel.log</string>
+</dict>
+</plist>
+PLIST_EOF
+  launchctl bootout gui/$(id -u) "$PLIST" 2>/dev/null || true
+  launchctl bootstrap gui/$(id -u) "$PLIST"
+  echo "Tunnel started via launchd"
+else
+  # Linux: use systemd user service
+  SERVICE_DIR="$HOME/.config/systemd/user"
+  mkdir -p "$SERVICE_DIR"
+  cat > "$SERVICE_DIR/codemobile-tunnel.service" << SVC_EOF
+[Unit]
+Description=CODE Mobile SSH Tunnel
+After=network-online.target
+
+[Service]
+ExecStart=$(which autossh) -M 0 -N -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -R $PORT:localhost:22 -i $KEY_FILE root@$SERVER
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+SVC_EOF
+  systemctl --user daemon-reload
+  systemctl --user enable --now codemobile-tunnel.service
+  echo "Tunnel started via systemd"
+fi
+
+echo ""
+echo "=== Pairing Complete ==="
+echo "Your machine is now connected to CODE Mobile."
+echo "You can access your terminal from https://$SERVER"
+`;
+    return new Response(script, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache",
+      },
+    });
+  });
 
   // ── Internal: Generate bootstrap code (localhost only) ─────
   app.post("/internal/generate-code", async (c) => {
@@ -309,6 +466,33 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
     const body: ApiResponse<{ code: string; expiresIn: number }> = {
       success: true,
       data: { code, expiresIn: 300 },
+    };
+    return c.json(body);
+  });
+
+  // ── Internal: Reset all data (localhost only) ───────────────
+  app.post("/internal/reset", (c) => {
+    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
+      ?? c.req.header("x-real-ip")
+      ?? "unknown";
+    const isLocal = ip === "127.0.0.1" || ip === "::1" || ip === "localhost" || ip === "unknown";
+
+    if (!isLocal && config.nodeEnv === "production") {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "FORBIDDEN", message: "Only available from localhost" },
+      };
+      return c.json(body, 403);
+    }
+
+    database.resetAllData();
+
+    // Re-generate bootstrap token for fresh setup
+    authService.generateBootstrapToken();
+
+    const body: ApiResponse<{ message: string }> = {
+      success: true,
+      data: { message: "All data has been reset. Server is ready for fresh setup." },
     };
     return c.json(body);
   });

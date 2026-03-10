@@ -18,6 +18,7 @@ export function createSessionRoutes(sessionManager: SessionManager): Hono<Sessio
 
   // ── POST / — create session ─────────────────────────────
   router.post("/", async (c) => {
+    const userId = c.get("user").sub;
     const { providerId, name, model, workDir, envVars } = await c.req.json<{
       providerId: string;
       name?: string;
@@ -41,7 +42,7 @@ export function createSessionRoutes(sessionManager: SessionManager): Hono<Sessio
         model,
         workDir,
         envVars,
-      });
+      }, userId);
 
       const body: ApiResponse<typeof session> = { success: true, data: session };
       return c.json(body, 201);
@@ -57,17 +58,28 @@ export function createSessionRoutes(sessionManager: SessionManager): Hono<Sessio
 
   // ── GET / — list sessions ───────────────────────────────
   router.get("/", (c) => {
+    const userId = c.get("user").sub;
     const status = c.req.query("status") as SessionStatus | undefined;
     const provider = c.req.query("provider");
 
-    const sessions = sessionManager.listSessions(status, provider);
+    const sessions = sessionManager.listSessions(status, provider, userId);
     const body: ApiResponse<typeof sessions> = { success: true, data: sessions };
     return c.json(body);
   });
 
   // ── GET /:id — session detail ───────────────────────────
   router.get("/:id", (c) => {
-    const session = sessionManager.getSession(c.req.param("id"));
+    const userId = c.get("user").sub;
+    const id = c.req.param("id");
+    if (!sessionManager.isSessionOwner(id, userId)) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "NOT_FOUND", message: "Session not found" },
+      };
+      return c.json(body, 404);
+    }
+
+    const session = sessionManager.getSession(id);
     if (!session) {
       const body: ApiResponse<never> = {
         success: false,
@@ -82,7 +94,15 @@ export function createSessionRoutes(sessionManager: SessionManager): Hono<Sessio
 
   // ── DELETE /:id — stop session ──────────────────────────
   router.delete("/:id", async (c) => {
+    const userId = c.get("user").sub;
     const id = c.req.param("id");
+    if (!sessionManager.isSessionOwner(id, userId)) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "NOT_FOUND", message: "Session not found" },
+      };
+      return c.json(body, 404);
+    }
     const session = sessionManager.getSession(id);
     if (!session) {
       const body: ApiResponse<never> = {
