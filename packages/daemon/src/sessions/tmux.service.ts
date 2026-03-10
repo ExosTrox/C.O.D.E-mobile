@@ -200,7 +200,8 @@ export class TmuxService {
     if (this.remote) {
       // Pipe tmux output to a temp file on the Mac
       const remoteLogPath = `/tmp/cm-${name}.log`;
-      await this.exec(["pipe-pane", "-t", name, "-o", `cat >> ${shellEscape(remoteLogPath)}`]);
+      // Don't use -o flag — it's a toggle that CLOSES the pipe if one already exists
+      await this.exec(["pipe-pane", "-t", name, `cat >> ${shellEscape(remoteLogPath)}`]);
 
       // Ensure the remote file exists
       Bun.spawn(this.sshArgs(`touch ${shellEscape(remoteLogPath)}`));
@@ -230,7 +231,7 @@ export class TmuxService {
 
       this.tailProcesses.set(name, tailProc);
     } else {
-      await this.exec(["pipe-pane", "-t", name, "-o", `cat >> ${shellEscape(filePath)}`]);
+      await this.exec(["pipe-pane", "-t", name, `cat >> ${shellEscape(filePath)}`]);
     }
   }
 
