@@ -1,23 +1,23 @@
 // ── DefaultRedirect ─────────────────────────────────────────
-// Smart redirect based on auth state. Waits for hydration.
+// Smart redirect based on auth state.
+// Reads localStorage directly to avoid zustand async hydration race.
 
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../../hooks/use-auth";
-import { useAuthHydrated } from "../../stores/auth.store";
+import { getPersistedAuth } from "../../stores/auth.store";
 
 export function DefaultRedirect() {
-  const hydrated = useAuthHydrated();
   const { isAuthenticated, isSetupComplete } = useAuth();
+  const persisted = getPersistedAuth();
 
-  if (!hydrated) {
-    return null;
-  }
+  const authed = isAuthenticated || !!persisted.accessToken;
+  const setupDone = isSetupComplete || persisted.isSetupComplete;
 
-  if (isAuthenticated) {
+  if (authed) {
     return <Navigate to="/sessions" replace />;
   }
 
-  if (isSetupComplete) {
+  if (setupDone) {
     return <Navigate to="/login" replace />;
   }
 

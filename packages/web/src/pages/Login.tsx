@@ -39,14 +39,17 @@ export function LoginPage() {
     autoLoginAttempted.current = true;
 
     setLoading(true);
+    const timeout = setTimeout(() => setLoading(false), 8000); // Safety timeout
     apiClient
       .refresh(refreshToken)
       .then((tokens) => {
+        clearTimeout(timeout);
         setTokens(tokens.accessToken, tokens.refreshToken);
         wsClient.connect(tokens.accessToken);
         navigate("/sessions", { replace: true });
       })
       .catch(() => {
+        clearTimeout(timeout);
         setLoading(false);
       });
   }, [refreshToken, isAuthenticated, setTokens, navigate]);
