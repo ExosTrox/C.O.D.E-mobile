@@ -89,6 +89,14 @@ export class SessionManager {
   }
 
   async createSession(options: SessionCreateOptions, userId?: string): Promise<Session> {
+    // Block session creation if user has no paired machine
+    if (userId && this.machineService) {
+      const machine = this.machineService.getMachineByUser(userId);
+      if (!machine || machine.status === "pending") {
+        throw new Error("No machine paired. Please pair your computer in Settings before starting a session.");
+      }
+    }
+
     const id = crypto.randomUUID() as SessionId;
     const shortId = id.slice(0, 8);
     const tmuxName = `cm-${shortId}`;

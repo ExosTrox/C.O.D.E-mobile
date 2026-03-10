@@ -2,15 +2,15 @@
 // Bottom-sheet (mobile) / centered modal (desktop) for creating sessions.
 
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Check, AlertTriangle, Loader2 } from "lucide-react";
+import { X, Check, AlertTriangle, Loader2, Monitor } from "lucide-react";
 import { toast } from "sonner";
 import type { ProviderId, ProviderConfig } from "@code-mobile/core";
 import { useProviders } from "../../hooks/use-providers";
 import { useApiKeys } from "../../hooks/use-api-keys";
 import { useCreateSession } from "../../hooks/use-sessions";
-import { ApiError } from "../../services/api";
+import { ApiError, apiClient } from "../../services/api";
 import { cn } from "../../lib/cn";
 
 // ── Props ───────────────────────────────────────────────────
@@ -55,14 +55,22 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   const [sessionName, setSessionName] = useState("");
   const [workDir, setWorkDir] = useState("~/projects");
   const [placeholder] = useState(randomSessionName);
+  const [machinePaired, setMachinePaired] = useState<boolean | null>(null);
+  const [checkingMachine, setCheckingMachine] = useState(false);
 
-  // Reset form on open
+  // Reset form on open + check machine status
   useEffect(() => {
     if (open) {
       setSelectedProvider(null);
       setSelectedModel("");
       setSessionName("");
       setWorkDir("~/projects");
+      // Check if user has a paired machine
+      setCheckingMachine(true);
+      apiClient.getMachineStatus()
+        .then((status) => setMachinePaired(status.paired))
+        .catch(() => setMachinePaired(false))
+        .finally(() => setCheckingMachine(false));
     }
   }, [open]);
 
@@ -185,7 +193,39 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             </div>
 
             <form onSubmit={handleSubmit} className="px-5 pb-20 md:pb-5 space-y-5">
-              {/* Provider selector */}
+              {/* Machine not paired — block session creation */}
+              {checkingMachine && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
+                </div>
+              )}
+
+              {!checkingMachine && machinePaired === false && (
+                <div className="rounded-xl border-2 border-dashed border-warning/40 bg-warning/5 p-5 text-center space-y-3">
+                  <div className="h-12 w-12 rounded-full bg-warning/15 flex items-center justify-center mx-auto">
+                    <Monitor className="h-6 w-6 text-warning" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-text-primary">
+                    No machine paired
+                  </h3>
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    You need to pair your computer before starting a session.
+                    Go to Settings to get your pairing command.
+                  </p>
+                  <Link
+                    to="/settings"
+                    onClick={onClose}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-surface-0 text-xs font-medium hover:bg-accent-hover transition-colors"
+                  >
+                    <Monitor className="h-3.5 w-3.5" />
+                    Go to Settings
+                  </Link>
+                </div>
+              )}
+
+              {/* Provider selector — only show when machine is paired */}
+              {!checkingMachine && machinePaired !== false && (
+              <>
               <div className="space-y-2">
                 <label className="text-xs font-medium text-text-secondary">
                   Provider
@@ -308,6 +348,8 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
                   "Start Session"
                 )}
               </button>
+              </>
+              )}
             </form>
           </motion.div>
         </>

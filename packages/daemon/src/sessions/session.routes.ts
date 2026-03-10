@@ -48,11 +48,15 @@ export function createSessionRoutes(sessionManager: SessionManager): Hono<Sessio
       return c.json(body, 201);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create session";
+      const isMachineError = message.includes("No machine paired");
       const body: ApiResponse<never> = {
         success: false,
-        error: { code: "SESSION_CREATE_FAILED", message },
+        error: {
+          code: isMachineError ? "MACHINE_NOT_PAIRED" : "SESSION_CREATE_FAILED",
+          message,
+        },
       };
-      return c.json(body, 500);
+      return c.json(body, isMachineError ? 400 : 500);
     }
   });
 

@@ -1,7 +1,7 @@
 // ── Settings Page ───────────────────────────────────────────
 // Server, Account, Terminal, About sections.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Server,
   User,
@@ -14,6 +14,13 @@ import {
   Github,
   Loader2,
   Trash2,
+  Monitor,
+  Copy,
+  RefreshCw,
+  Unlink,
+  CheckCircle,
+  XCircle,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "../components/layout/Header";
@@ -288,6 +295,163 @@ function ActiveDevicesModal({ open, onClose }: { open: boolean; onClose: () => v
   );
 }
 
+// ── Machine Pairing Section ─────────────────────────────────
+
+type MachineStatus =
+  | { paired: false; pairingCommand: string }
+  | { paired: true; status: string; sshPort: number; label: string | null };
+
+function MachineSection() {
+  const [machine, setMachine] = useState<MachineStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [unpairing, setUnpairing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const status = await apiClient.getMachineStatus();
+      setMachine(status);
+    } catch {
+      // Ignore — will show as not loaded
+    }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchStatus().finally(() => setLoading(false));
+  }, [fetchStatus]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchStatus();
+    setRefreshing(false);
+  };
+
+  const handleCopy = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast.success("Pairing command copied!");
+    setTimeout(() => setCopied(false), 3000);
+  };
+
+  const handleUnpair = async () => {
+    setUnpairing(true);
+    try {
+      await apiClient.unpairMachine();
+      toast.success("Machine unpaired");
+      await fetchStatus();
+    } catch {
+      toast.error("Failed to unpair machine");
+    } finally {
+      setUnpairing(false);
+    }
+  };
+
+  const handleNewToken = async () => {
+    setLoading(true);
+    try {
+      await apiClient.generatePairingToken();
+      await fetchStatus();
+    } catch {
+      toast.error("Failed to generate pairing token");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Section title="Machine" icon={Monitor}>
+        <div className="flex justify-center py-6">
+          <Spinner size="md" className="text-text-muted" />
+        </div>
+      </Section>
+    );
+  }
+
+  if (!machine || !machine.paired) {
+    // Not paired — show pairing instructions
+    const pairingCmd = machine && !machine.paired ? machine.pairingCommand : null;
+
+    return (
+      <Section title="Machine" icon={Monitor}>
+        <div className="px-4 py-4 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="h-8 w-8 rounded-lg bg-warning/10 flex items-center justify-center shrink-0 mt-0.5">
+              <Clock className="h-4 w-4 text-warning" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-text-primary">No machine paired</p>
+              <p className="text-xs text-text-muted mt-0.5">
+                Pair your computer to use the terminal. Run this command on your Mac or Linux machine:
+              </p>
+            </div>
+          </div>
+
+          {pairingCmd ? (
+            <>
+              <div className="relative">
+                <pre className="text-[11px] font-mono bg-surface-2 rounded-lg p-3 pr-10 overflow-x-auto text-text-secondary whitespace-pre-wrap break-all border border-border/50">
+                  {pairingCmd}
+                </pre>
+                <button
+                  onClick={() => handleCopy(pairingCmd)}
+                  className="absolute top-2 right-2 p-1.5 rounded-md bg-surface-3/80 hover:bg-surface-3 text-text-muted hover:text-text-primary transition-colors"
+                  aria-label="Copy command"
+                >
+                  {copied ? <CheckCircle className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="secondary" size="sm" onClick={handleRefresh} disabled={refreshing}>
+                  <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+                  {refreshing ? "Checking..." : "Check status"}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={handleNewToken}>
+                  New token
+                </Button>
+              </div>
+            </>
+          ) : (
+            <Button variant="primary" size="sm" onClick={handleNewToken}>
+              Generate pairing command
+            </Button>
+          )}
+        </div>
+      </Section>
+    );
+  }
+
+  // Paired — show status
+  const isOnline = machine.status === "online";
+
+  return (
+    <Section title="Machine" icon={Monitor}>
+      <Row
+        label={machine.label || "My Computer"}
+        description={`Port ${machine.sshPort}`}
+      >
+        <Badge variant={isOnline ? "success" : "error"} dot>
+          {isOnline ? "Online" : "Offline"}
+        </Badge>
+      </Row>
+
+      <div className="px-4 py-3 flex gap-2">
+        <Button variant="secondary" size="sm" onClick={handleRefresh} disabled={refreshing}>
+          <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+          {refreshing ? "Checking..." : "Refresh"}
+        </Button>
+        <Button variant="danger" size="sm" onClick={handleUnpair} disabled={unpairing}>
+          <Unlink className="h-3.5 w-3.5" />
+          {unpairing ? "Unpairing..." : "Unpair"}
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────
 
 export function SettingsPage() {
@@ -374,6 +538,9 @@ export function SettingsPage() {
               </Button>
             </Row>
           </Section>
+
+          {/* ── Machine ─────────────────────────────────── */}
+          <MachineSection />
 
           {/* ── Terminal ────────────────────────────────── */}
           <Section title="Terminal" icon={Terminal}>
