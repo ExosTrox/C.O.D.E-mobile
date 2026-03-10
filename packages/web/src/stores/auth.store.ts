@@ -1,5 +1,6 @@
 // ── Auth Store ──────────────────────────────────────────────
 
+import { useState, useEffect } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -63,3 +64,19 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 );
+
+// ── Hydration helper ────────────────────────────────────────
+// Zustand persist hydrates async from localStorage. Components that
+// check auth on first render (e.g. ProtectedRoute) must wait for
+// hydration to avoid a flash redirect to /login.
+
+export const useAuthHydrated = () => {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true));
+    // Already hydrated (fast path)
+    if (useAuthStore.persist.hasHydrated()) setHydrated(true);
+    return unsub;
+  }, []);
+  return hydrated;
+};
