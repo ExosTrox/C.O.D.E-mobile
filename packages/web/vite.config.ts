@@ -9,6 +9,9 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
+      // Force service worker update by changing this version
+      // when deploying breaking changes
+      selfDestroying: false,
       includeAssets: [
         "favicon.png",
         "icon-192x192.svg",

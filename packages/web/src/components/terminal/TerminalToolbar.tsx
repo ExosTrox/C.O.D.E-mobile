@@ -23,9 +23,9 @@ interface KeyDef {
 }
 
 const ROW_1: KeyDef[] = [
-  { label: "Tab", key: "Tab" },
-  { label: "Ctrl", key: "__CTRL__" },
-  { label: "Esc", key: "Escape" },
+  { label: "Tab", key: "Tab", wide: true },
+  { label: "Ctrl", key: "__CTRL__", wide: true },
+  { label: "Esc", key: "Escape", wide: true },
   { label: "\u2191", key: "Up" },
   { label: "\u2193", key: "Down" },
   { label: "\u2190", key: "Left" },
@@ -73,13 +73,12 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
     (def: KeyDef) => {
       // Haptic feedback
       if (navigator.vibrate) {
-        navigator.vibrate(10);
+        navigator.vibrate(8);
       }
 
       // Ctrl toggle
       if (def.key === "__CTRL__") {
         setCtrlActive((prev) => !prev);
-        // Auto-release after 3s if not used
         if (ctrlTimeoutRef.current) clearTimeout(ctrlTimeoutRef.current);
         ctrlTimeoutRef.current = setTimeout(() => setCtrlActive(false), 3000);
         return;
@@ -126,7 +125,6 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
       toast.error(message);
     } finally {
       setUploading(false);
-      // Reset file input so same file can be re-selected
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -134,56 +132,42 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
   }, []);
 
   return (
-    <div className="terminal-toolbar bg-surface-1/95 backdrop-blur-lg border-t border-border safe-bottom select-none md:hidden">
+    <div className="bg-surface-0 border-t border-border/60 safe-bottom select-none md:hidden">
       {/* Expand/collapse toggle */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center justify-center w-full h-6 text-text-dimmed hover:text-text-muted"
+        className="flex items-center justify-center w-full h-5 text-text-dimmed hover:text-text-muted transition-colors"
         aria-label={expanded ? "Collapse toolbar" : "Expand toolbar"}
       >
-        {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+        {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
       </button>
 
       {/* Row 1: always visible — keys + upload button */}
-      <div className="flex gap-1 px-1.5 py-1 overflow-x-auto scrollbar-none">
+      <div className="flex gap-1 px-2 pb-1.5 overflow-x-auto scrollbar-none">
         {ROW_1.map((def) => (
-          <button
+          <ToolbarKey
             key={def.label}
-            onPointerDown={(e) => {
-              e.preventDefault();
-              sendKey(def);
-            }}
-            className={cn(
-              "shrink-0 h-8 rounded-md font-mono text-xs",
-              "bg-surface-2 border border-border",
-              "active:scale-90 active:bg-surface-3",
-              "transition-all duration-75",
-              def.wide ? "px-3 min-w-[3rem]" : "px-2 min-w-[2rem]",
-              def.key === "__CTRL__" && ctrlActive
-                ? "bg-accent/20 border-accent text-accent"
-                : "text-text-secondary hover:text-text-primary",
-            )}
-          >
-            {def.key === "__CTRL__" ? "Ctrl" : def.label}
-          </button>
+            def={def}
+            ctrlActive={ctrlActive}
+            onPress={sendKey}
+          />
         ))}
 
         {/* Upload button */}
         <button
           onPointerDown={(e) => {
             e.preventDefault();
-            if (navigator.vibrate) navigator.vibrate(10);
+            if (navigator.vibrate) navigator.vibrate(8);
             fileInputRef.current?.click();
           }}
           disabled={uploading}
           className={cn(
-            "shrink-0 h-8 px-2.5 min-w-[2.5rem] rounded-md text-xs",
-            "bg-surface-2 border border-border",
-            "active:scale-90 active:bg-surface-3",
-            "transition-all duration-75",
+            "shrink-0 h-9 px-2.5 min-w-[2.5rem] rounded-lg text-xs font-medium",
+            "bg-surface-2/80 border border-border/50",
+            "active:scale-95 transition-all duration-75",
             uploading
               ? "text-accent animate-pulse"
-              : "text-text-secondary hover:text-text-primary",
+              : "text-text-muted hover:text-text-secondary",
           )}
           aria-label="Upload file"
         >
@@ -202,48 +186,54 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
       {/* Row 2 & 3: expandable */}
       {expanded && (
         <>
-          <KeyRow keys={ROW_2} onPress={sendKey} ctrlActive={false} />
-          <KeyRow keys={ROW_3} onPress={sendKey} ctrlActive={false} />
+          <div className="flex gap-1 px-2 pb-1 overflow-x-auto scrollbar-none">
+            {ROW_2.map((def) => (
+              <ToolbarKey key={def.label} def={def} ctrlActive={ctrlActive} onPress={sendKey} />
+            ))}
+          </div>
+          <div className="flex gap-1 px-2 pb-1.5 overflow-x-auto scrollbar-none">
+            {ROW_3.map((def) => (
+              <ToolbarKey key={def.label} def={def} ctrlActive={false} onPress={sendKey} />
+            ))}
+          </div>
         </>
       )}
     </div>
   );
 }
 
-// ── KeyRow ─────────────────────────────────────────────────
+// ── ToolbarKey ────────────────────────────────────────────
 
-function KeyRow({
-  keys,
-  onPress,
+function ToolbarKey({
+  def,
   ctrlActive,
+  onPress,
 }: {
-  keys: KeyDef[];
-  onPress: (key: KeyDef) => void;
+  def: KeyDef;
   ctrlActive: boolean;
+  onPress: (key: KeyDef) => void;
 }) {
+  const isCtrlToggle = def.key === "__CTRL__";
+  const isActive = isCtrlToggle && ctrlActive;
+
   return (
-    <div className="flex gap-1 px-1.5 py-1 overflow-x-auto scrollbar-none">
-      {keys.map((def) => (
-        <button
-          key={def.label}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            onPress(def);
-          }}
-          className={cn(
-            "shrink-0 h-8 rounded-md font-mono text-xs",
-            "bg-surface-2 border border-border",
-            "active:scale-90 active:bg-surface-3",
-            "transition-all duration-75",
-            def.wide ? "px-3 min-w-[3rem]" : "px-2 min-w-[2rem]",
-            def.key === "__CTRL__" && ctrlActive
-              ? "bg-accent/20 border-accent text-accent"
-              : "text-text-secondary hover:text-text-primary",
-          )}
-        >
-          {def.key === "__CTRL__" ? "Ctrl" : def.label}
-        </button>
-      ))}
-    </div>
+    <button
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onPress(def);
+      }}
+      className={cn(
+        "shrink-0 h-9 rounded-lg font-mono text-xs font-medium",
+        "transition-all duration-75 active:scale-95",
+        def.wide ? "px-3 min-w-[2.75rem]" : "px-2 min-w-[2rem]",
+        isActive
+          ? "bg-accent/20 border border-accent/50 text-accent shadow-sm shadow-accent/10"
+          : def.ctrl
+            ? "bg-surface-2/60 border border-border/40 text-accent/80 hover:text-accent"
+            : "bg-surface-2/80 border border-border/50 text-text-secondary hover:text-text-primary",
+      )}
+    >
+      {isCtrlToggle ? "Ctrl" : def.label}
+    </button>
   );
 }

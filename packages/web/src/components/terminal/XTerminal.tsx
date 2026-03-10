@@ -225,7 +225,12 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     const handleOutput = (msg: { sessionId: string; data: string; offset: number }) => {
       if (msg.sessionId !== sessionId) return;
       try {
-        const bytes = atob(msg.data);
+        // Decode base64 to Uint8Array for proper UTF-8 handling
+        const raw = atob(msg.data);
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) {
+          bytes[i] = raw.charCodeAt(i);
+        }
         term.write(bytes);
         lastOffsetRef.current = msg.offset + bytes.length;
       } catch {

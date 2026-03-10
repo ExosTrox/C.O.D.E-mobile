@@ -126,7 +126,8 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             if (err instanceof ApiError) {
               toast.error(err.message);
             } else {
-              toast.error("Failed to create session");
+              const msg = err instanceof Error ? err.message : "Unknown error";
+              toast.error(`Failed to create session: ${msg}`);
             }
           },
         },
@@ -145,7 +146,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 bg-black/50 z-50"
+            className="fixed inset-0 bg-black/60 z-[55]"
             onClick={onClose}
           />
 
@@ -156,9 +157,9 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             exit={{ opacity: 0, y: 100 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className={cn(
-              "fixed z-50 bg-surface-1 border border-border shadow-2xl overflow-y-auto",
-              // Mobile: bottom sheet
-              "inset-x-0 bottom-0 rounded-t-2xl max-h-[85vh] safe-bottom",
+              "fixed z-[60] bg-surface-1 border border-border/60 shadow-2xl overflow-y-auto",
+              // Mobile: bottom sheet — sits above the nav bar
+              "inset-x-0 bottom-0 rounded-t-2xl max-h-[90vh]",
               // Desktop: centered modal
               "md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2",
               "md:rounded-2xl md:w-full md:max-w-lg md:max-h-[80vh]",

@@ -48,7 +48,7 @@ interface OutputResponse {
 
 // ── ApiClient ──────────────────────────────────────────────
 
-const REQUEST_TIMEOUT = 15_000;
+const REQUEST_TIMEOUT = 30_000;
 
 export class ApiClient {
   private baseUrl: string;
