@@ -83,18 +83,16 @@ COPY --from=builder /app/packages/providers/node_modules/ packages/providers/nod
 COPY --from=builder /app/packages/daemon/node_modules/ packages/daemon/node_modules/
 COPY --from=builder /app/packages/web/node_modules/ packages/web/node_modules/
 
-# Set ownership
-RUN chown -R codemobile:codemobile /app
-
-USER codemobile
+# Set ownership (codemobile owns app + data, but we run as root for port 80)
+RUN chown -R codemobile:codemobile /app /home/codemobile
 
 # Default environment
-ENV PORT=3000 \
+ENV PORT=80 \
     HOST=0.0.0.0 \
     NODE_ENV=production \
     DATA_DIR=/home/codemobile/.codemobile
 
-EXPOSE 3000
+EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -sf http://localhost:${PORT:-3000}/health || exit 1
