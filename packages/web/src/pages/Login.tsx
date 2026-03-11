@@ -1,5 +1,5 @@
 // ── LoginPage ───────────────────────────────────────────────
-// Simple login: username + password. TOTP only shown if server requires it.
+// Login: username + password. TOTP shown if server requires it.
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
@@ -36,13 +36,12 @@ export function LoginPage() {
 
   useEffect(() => {
     if (autoLoginAttempted.current || isAuthenticated) return;
-    // Read refresh token from zustand OR localStorage (zustand may not have hydrated yet)
     const token = refreshToken || getPersistedAuth().refreshToken;
     if (!token) return;
     autoLoginAttempted.current = true;
 
     setLoading(true);
-    const timeout = setTimeout(() => setLoading(false), 8000); // Safety timeout
+    const timeout = setTimeout(() => setLoading(false), 8000);
     apiClient
       .refresh(token)
       .then((tokens) => {
@@ -69,7 +68,6 @@ export function LoginPage() {
 
       try {
         const tokens = await apiClient.login(pw, totp || "", getDeviceName(), username || undefined);
-
         setTokens(tokens.accessToken, tokens.refreshToken);
 
         if (!rememberDevice) {
@@ -120,20 +118,23 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-surface-0 relative">
-      {/* Subtle radial glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-accent/[0.03] rounded-full blur-3xl" />
+    <div className="min-h-screen flex items-center justify-center p-6 bg-surface-0 relative overflow-hidden">
+      {/* Ambient glow */}
+      <div
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] rounded-full blur-3xl"
+        style={{ background: `rgba(var(--accent-rgb), 0.03)` }}
+      />
 
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         className={cn(
           "w-full max-w-sm space-y-8 relative z-10",
           shaking && "animate-[shake_0.5s_ease-in-out]",
         )}
       >
-        {/* Back to connect */}
+        {/* Back */}
         <Link
           to="/connect"
           className="inline-flex items-center gap-1.5 text-xs text-text-dimmed hover:text-text-muted transition-colors"
@@ -143,12 +144,12 @@ export function LoginPage() {
         </Link>
 
         {/* Branding */}
-        <div className="space-y-2">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-accent/15 to-accent/5 flex items-center justify-center border border-accent/10">
-            <Terminal className="h-5 w-5 text-accent" />
+        <div className="space-y-3">
+          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-accent/15 via-accent/8 to-transparent flex items-center justify-center border border-accent/10">
+            <Terminal className="h-6 w-6 text-accent" />
           </div>
           <div className="space-y-1 pt-1">
-            <h1 className="text-xl font-semibold text-text-primary tracking-tight">Welcome back</h1>
+            <h1 className="text-2xl font-bold text-text-primary tracking-tight">Welcome back</h1>
             <p className="text-sm text-text-muted">Sign in to your terminal</p>
           </div>
         </div>
@@ -166,14 +167,14 @@ export function LoginPage() {
 
           {/* Username */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-text-secondary">
+            <label className="text-xs font-semibold text-text-secondary">
               Username
             </label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full h-11 px-4 rounded-xl bg-surface-2/60 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent/40 transition-all"
+              className="w-full h-12 px-4 rounded-xl bg-surface-2/50 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent/40 transition-all"
               placeholder="Enter username"
               autoComplete="username"
               autoFocus
@@ -182,7 +183,7 @@ export function LoginPage() {
 
           {/* Password */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-text-secondary">
+            <label className="text-xs font-semibold text-text-secondary">
               Password
             </label>
             <div className="relative">
@@ -190,7 +191,7 @@ export function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full h-11 px-4 pr-11 rounded-xl bg-surface-2/60 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent/40 transition-all"
+                className="w-full h-12 px-4 pr-12 rounded-xl bg-surface-2/50 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent/40 transition-all"
                 placeholder="Enter password"
                 required
                 autoComplete="current-password"
@@ -198,7 +199,7 @@ export function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-text-dimmed hover:text-text-muted transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-text-dimmed hover:text-text-muted transition-colors rounded-lg hover:bg-surface-3/50"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -212,7 +213,7 @@ export function LoginPage() {
               animate={{ opacity: 1, height: "auto" }}
               className="space-y-1.5"
             >
-              <label className="text-xs font-medium text-text-secondary">
+              <label className="text-xs font-semibold text-text-secondary">
                 Two-Factor Code
               </label>
               <input
@@ -223,7 +224,7 @@ export function LoginPage() {
                 maxLength={6}
                 value={totpCode}
                 onChange={handleTotpChange}
-                className="w-full h-11 px-4 rounded-xl bg-surface-2/60 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent/40 transition-all font-mono tracking-[0.3em] text-center"
+                className="w-full h-12 px-4 rounded-xl bg-surface-2/50 border border-border text-text-primary text-sm placeholder:text-text-dimmed focus:outline-none focus:border-accent/40 transition-all font-mono tracking-[0.3em] text-center"
                 placeholder="000000"
                 autoComplete="one-time-code"
               />
@@ -234,7 +235,7 @@ export function LoginPage() {
           )}
 
           {/* Remember device */}
-          <label className="flex items-center gap-2.5 cursor-pointer group">
+          <label className="flex items-center gap-2.5 cursor-pointer group py-1">
             <div className="relative">
               <input
                 type="checkbox"
@@ -242,7 +243,7 @@ export function LoginPage() {
                 onChange={(e) => setRememberDevice(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="h-4 w-4 rounded-md border border-border bg-surface-2/60 peer-checked:bg-accent peer-checked:border-accent transition-all flex items-center justify-center">
+              <div className="h-4.5 w-4.5 rounded-md border border-border bg-surface-2/50 peer-checked:bg-accent peer-checked:border-accent transition-all flex items-center justify-center">
                 {rememberDevice && (
                   <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -257,7 +258,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-11 rounded-xl bg-accent text-white font-medium text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-accent-hover hover:shadow-lg hover:shadow-accent/15 active:scale-[0.98]"
+            className="w-full h-12 rounded-xl bg-accent text-white font-semibold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.97]"
           >
             {loading ? (
               <>
@@ -271,13 +272,13 @@ export function LoginPage() {
         </form>
 
         {/* Links */}
-        <div className="text-center space-y-2 pt-2">
+        <div className="text-center space-y-2.5 pt-2">
           <p>
             <Link
               to="/signup"
               className="text-xs text-text-muted hover:text-accent transition-colors"
             >
-              Don&apos;t have an account? <span className="text-accent">Sign up</span>
+              Don&apos;t have an account? <span className="text-accent font-medium">Sign up</span>
             </Link>
           </p>
           <p>

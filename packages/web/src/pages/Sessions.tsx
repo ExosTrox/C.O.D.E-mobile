@@ -129,29 +129,34 @@ export function SessionsPage() {
 
         {/* Refetch indicator */}
         {isRefetching && !pulling && (
-          <div className="flex justify-center py-1.5">
-            <div className="h-0.5 w-12 bg-accent/20 rounded-full overflow-hidden">
+          <div className="flex justify-center py-2">
+            <div className="h-0.5 w-16 bg-accent/15 rounded-full overflow-hidden">
               <div className="h-full w-1/3 bg-accent rounded-full animate-pulse" />
             </div>
           </div>
         )}
 
-        {/* Greeting + stats */}
-        <div className="px-5 pt-5 pb-2 space-y-3">
+        {/* Stats header */}
+        <div className="px-5 pt-5 pb-1">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-text-primary tracking-tight">
-              Sessions
-            </h2>
-            {sessions && sessions.length > 0 && (
-              <div className="flex items-center gap-2">
-                {runningCount > 0 && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-success/8 text-success text-[11px] font-medium border border-success/10">
-                    <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-                    {runningCount} active
-                  </span>
-                )}
-                <span className="text-[11px] text-text-dimmed">
+            <div>
+              <h2 className="text-xl font-bold text-text-primary tracking-tight">
+                Sessions
+              </h2>
+              {sessions && sessions.length > 0 && (
+                <p className="text-[11px] text-text-muted mt-0.5">
                   {sessions.length} total
+                </p>
+              )}
+            </div>
+            {runningCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-success/[0.06] border border-success/10">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-50" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
+                </span>
+                <span className="text-[11px] font-semibold text-success tracking-wide">
+                  {runningCount} active
                 </span>
               </div>
             )}
@@ -159,7 +164,7 @@ export function SessionsPage() {
         </div>
 
         {/* Filter chips */}
-        <div className="flex gap-1.5 px-5 py-2">
+        <div className="flex gap-1.5 px-5 py-3">
           {FILTERS.map((f) => {
             const count = f.value !== "all" && sessions
               ? sessions.filter((s) =>
@@ -174,15 +179,15 @@ export function SessionsPage() {
                 key={f.value}
                 onClick={() => setFilter(f.value)}
                 className={cn(
-                  "px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                  "px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200",
                   filter === f.value
-                    ? "bg-accent/10 text-accent border border-accent/15"
-                    : "text-text-muted hover:text-text-secondary hover:bg-surface-2/50 border border-transparent",
+                    ? "bg-accent/12 text-accent border border-accent/20 shadow-sm shadow-accent/5"
+                    : "text-text-muted hover:text-text-secondary hover:bg-surface-2/40 border border-transparent",
                 )}
               >
                 {f.label}
                 {count !== null && count > 0 && (
-                  <span className="ml-1 opacity-50">{count}</span>
+                  <span className="ml-1.5 text-[10px] opacity-60">{count}</span>
                 )}
               </button>
             );
@@ -203,23 +208,23 @@ export function SessionsPage() {
         {isEmpty && (
           <div className="flex-1 flex items-center justify-center px-6 py-20">
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="text-center space-y-6 max-w-xs"
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="text-center space-y-8 max-w-xs"
             >
               <div className="relative mx-auto w-fit">
                 <motion.div
-                  animate={{ y: [0, -6, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                  className="h-16 w-16 rounded-2xl bg-gradient-to-br from-accent/10 to-purple-500/5 flex items-center justify-center border border-accent/10"
+                  animate={{ y: [0, -8, 0] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                 >
-                  <Terminal className="h-7 w-7 text-accent" />
+                  <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-accent/15 to-accent/5 flex items-center justify-center border border-accent/10 icon-glow mx-auto">
+                    <Terminal className="h-8 w-8 text-accent" />
+                  </div>
                 </motion.div>
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-2 bg-accent/5 rounded-full blur-md" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-base font-semibold text-text-primary">
+                <h3 className="text-lg font-bold text-text-primary tracking-tight">
                   No sessions yet
                 </h3>
                 <p className="text-sm text-text-muted leading-relaxed">
@@ -228,9 +233,9 @@ export function SessionsPage() {
               </div>
               <button
                 onClick={() => setModalOpen(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-all hover:shadow-lg hover:shadow-accent/15 active:scale-[0.98]"
+                className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-accent text-white text-sm font-semibold transition-all active:scale-[0.97] fab-glow"
               >
-                <Zap className="h-3.5 w-3.5" />
+                <Zap className="h-4 w-4" />
                 New Session
               </button>
             </motion.div>
@@ -239,13 +244,13 @@ export function SessionsPage() {
 
         {/* Session list */}
         {!isLoading && sessions && sessions.length > 0 && (
-          <div className="px-4 pb-24 space-y-1.5 pt-1">
+          <div className="px-4 pb-24 space-y-2 pt-1">
             {sessions.map((session, i) => (
               <motion.div
                 key={session.id}
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03, duration: 0.3 }}
+                transition={{ delay: i * 0.04, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
               >
                 <SessionCard
                   session={session}
@@ -265,10 +270,10 @@ export function SessionsPage() {
           animate={{ scale: 1, opacity: 1 }}
           transition={{ delay: 0.3, type: "spring", stiffness: 300, damping: 20 }}
           onClick={() => setModalOpen(true)}
-          className="fixed bottom-20 right-5 md:bottom-6 md:right-6 z-40 h-13 w-13 rounded-2xl bg-accent text-white shadow-xl shadow-accent/20 flex items-center justify-center hover:bg-accent-hover active:scale-95 transition-all hover:shadow-accent/30"
+          className="fixed bottom-20 right-5 md:bottom-6 md:right-6 z-40 h-14 w-14 rounded-2xl bg-accent text-white flex items-center justify-center active:scale-95 transition-all fab-glow"
           aria-label="New session"
         >
-          <Plus className="h-5 w-5" />
+          <Plus className="h-5 w-5" strokeWidth={2.5} />
         </motion.button>
       )}
 

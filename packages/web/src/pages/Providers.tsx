@@ -7,7 +7,6 @@ import {
   Check,
   AlertTriangle,
   HelpCircle,
-  Cpu,
 } from "lucide-react";
 import type { ProviderConfig } from "@code-mobile/core";
 import { PROVIDERS } from "@code-mobile/core";
@@ -20,15 +19,15 @@ import { cn } from "../lib/cn";
 
 // ── Provider colors ────────────────────────────────────────
 
-const PROVIDER_COLORS: Record<string, { text: string; gradient: string; accent: string }> = {
-  "claude-code": { text: "text-amber-400", gradient: "from-amber-500/15 to-amber-600/5", accent: "#d97706" },
-  "openai-codex": { text: "text-emerald-400", gradient: "from-emerald-500/15 to-emerald-600/5", accent: "#10b981" },
-  "gemini-cli": { text: "text-blue-400", gradient: "from-blue-500/15 to-blue-600/5", accent: "#3b82f6" },
-  deepseek: { text: "text-indigo-400", gradient: "from-indigo-500/15 to-indigo-600/5", accent: "#6366f1" },
-  openclaw: { text: "text-pink-400", gradient: "from-pink-500/15 to-pink-600/5", accent: "#ec4899" },
+const PROVIDER_COLORS: Record<string, { color: string; accent: string }> = {
+  "claude-code": { color: "#f59e0b", accent: "#d97706" },
+  "openai-codex": { color: "#10b981", accent: "#10b981" },
+  "gemini-cli": { color: "#3b82f6", accent: "#3b82f6" },
+  deepseek: { color: "#6366f1", accent: "#6366f1" },
+  openclaw: { color: "#ec4899", accent: "#ec4899" },
 };
 
-const DEFAULT_COLOR = { text: "text-accent", gradient: "from-accent/15 to-accent/5", accent: "#7aa2f7" };
+const DEFAULT_COLOR = { color: "var(--color-accent)", accent: "#7aa2f7" };
 
 // ── Status logic ───────────────────────────────────────────
 
@@ -80,23 +79,31 @@ function ProviderCard({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.3 }}
+      transition={{ delay: index * 0.05, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
     >
       <button
         onClick={onClick}
-        className="w-full text-left rounded-xl bg-surface-1/50 border border-white/[0.04] p-4 space-y-3 cursor-pointer hover:bg-surface-1/80 hover:border-white/[0.06] active:scale-[0.98] transition-all duration-200"
+        className="w-full text-left rounded-2xl bg-gradient-to-br from-surface-1/80 to-surface-1/40 border border-white/[0.05] p-4 space-y-3 cursor-pointer card-hover hover:border-white/[0.08] active:scale-[0.98] transition-all duration-200"
       >
         {/* Icon + Status */}
         <div className="flex items-start justify-between">
-          <div className={cn(
-            "h-11 w-11 rounded-xl flex items-center justify-center bg-gradient-to-br border border-white/[0.04]",
-            colors.gradient,
-          )}>
-            <Cpu className={cn("h-5 w-5", colors.text)} />
+          <div
+            className="h-11 w-11 rounded-xl flex items-center justify-center provider-icon"
+            style={{
+              background: `linear-gradient(135deg, ${colors.color}18, ${colors.color}08)`,
+              border: `1px solid ${colors.color}20`,
+            }}
+          >
+            <span
+              className="text-sm font-bold relative z-10"
+              style={{ color: colors.color }}
+            >
+              {provider.displayName.charAt(0)}
+            </span>
           </div>
 
           <div className={cn(
-            "inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium rounded-lg border",
+            "inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-semibold rounded-lg border",
             badge.variant === "ready"
               ? "bg-success/8 text-success border-success/15"
               : badge.variant === "warning"
@@ -111,7 +118,7 @@ function ProviderCard({
 
         {/* Name */}
         <div>
-          <h3 className="text-sm font-semibold text-text-primary">{provider.displayName}</h3>
+          <h3 className="text-sm font-bold text-text-primary tracking-tight">{provider.displayName}</h3>
           <p className="text-[11px] text-text-muted mt-0.5">
             {provider.models.length} model{provider.models.length !== 1 ? "s" : ""}
           </p>
@@ -119,7 +126,7 @@ function ProviderCard({
 
         {/* Bottom accent line */}
         <div
-          className="h-0.5 w-8 rounded-full opacity-30"
+          className="h-0.5 w-8 rounded-full opacity-40"
           style={{ backgroundColor: colors.accent }}
         />
       </button>
@@ -157,7 +164,7 @@ export function ProvidersPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-text-primary tracking-tight">
+              <h2 className="text-xl font-bold text-text-primary tracking-tight">
                 AI Providers
               </h2>
               <p className="text-[11px] text-text-muted mt-0.5">

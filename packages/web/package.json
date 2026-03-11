@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@code-mobile/core": "workspace:*",
+    "@fontsource-variable/outfit": "^5.2.8",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@tailwindcss/vite": "^4.2.1",
