@@ -10,9 +10,9 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
     <div
       ref={ref}
       className={cn(
-        "rounded-xl bg-surface-1/50 border border-white/[0.04] p-4",
+        "rounded-2xl bg-gradient-to-br from-surface-1/80 to-surface-1/40 border border-white/[0.05] p-4",
         interactive &&
-          "cursor-pointer hover:bg-surface-1/80 hover:border-white/[0.06] active:scale-[0.98] transition-all duration-200",
+          "cursor-pointer card-hover active:scale-[0.98] transition-all duration-200",
         className,
       )}
       {...props}

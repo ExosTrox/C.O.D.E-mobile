@@ -85,8 +85,8 @@ export function createFileRoutes(machineService: MachineService, legacySSH?: Rem
 
     // Destination on the user's machine (default: ~/Downloads/)
     const destRaw = (formData.get("destination") as string) || "~/Downloads/";
-    // Basic path traversal guard: reject null bytes
-    if (destRaw.includes("\0")) {
+    // Path traversal guard: reject null bytes, ../ sequences, and control characters
+    if (destRaw.includes("\0") || /\.\.[\\/]/.test(destRaw) || /[\x00-\x1f]/.test(destRaw)) {
       const body: ApiResponse<never> = {
         success: false,
         error: { code: "INVALID_PATH", message: "Invalid destination path" },

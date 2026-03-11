@@ -32,6 +32,24 @@ export function createMachineRoutes(machineService: MachineService): Hono<Machin
       return c.json(body, 400);
     }
 
+    // Validate sshUser to prevent command injection
+    if (!/^[a-zA-Z0-9._-]{1,64}$/.test(sshUser)) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Invalid SSH username format" },
+      };
+      return c.json(body, 400);
+    }
+
+    // Validate SSH public key format if provided
+    if (publicKey && !/^(ssh-(ed25519|rsa)|ecdsa-sha2-nistp\d+)\s+\S+/.test(publicKey.trim())) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Invalid SSH public key format" },
+      };
+      return c.json(body, 400);
+    }
+
     const machine = machineService.redeemPairingToken(token, sshUser, publicKey);
     if (!machine) {
       const body: ApiResponse<never> = {

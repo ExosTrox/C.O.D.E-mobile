@@ -15,7 +15,7 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
         {(label || displayValue) && (
           <div className="flex items-center justify-between">
             {label && (
-              <label htmlFor={sliderId} className="text-xs font-medium text-text-secondary">
+              <label htmlFor={sliderId} className="text-xs font-semibold text-text-secondary">
                 {label}
               </label>
             )}
