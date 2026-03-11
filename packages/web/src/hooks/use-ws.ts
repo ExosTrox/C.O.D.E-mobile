@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { wsClient } from "../services/ws";
 import { useAuthStore, getPersistedAuth } from "../stores/auth.store";
 import { useConnectionStore } from "../stores/connection.store";
@@ -11,29 +11,25 @@ export function useWs() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const setStatus = useConnectionStore((s) => s.setStatus);
   const setLatency = useConnectionStore((s) => s.setLatency);
-  const boundRef = useRef(false);
 
+  // Bind WsClient events → connection store
   useEffect(() => {
-    // Bind WsClient events → connection store (once)
-    if (!boundRef.current) {
-      boundRef.current = true;
+    const onConnected = (() => setStatus("connected")) as never;
+    const onDisconnected = (() => setStatus("disconnected")) as never;
+    const onReconnecting = (() => setStatus("connecting")) as never;
+    const onPong = (() => setLatency(wsClient.latencyMs)) as never;
 
-      wsClient.on("connected", (() => {
-        setStatus("connected");
-      }) as never);
+    wsClient.on("connected", onConnected);
+    wsClient.on("disconnected", onDisconnected);
+    wsClient.on("reconnecting", onReconnecting);
+    wsClient.on("pong", onPong);
 
-      wsClient.on("disconnected", (() => {
-        setStatus("disconnected");
-      }) as never);
-
-      wsClient.on("reconnecting", (() => {
-        setStatus("connecting");
-      }) as never);
-
-      wsClient.on("pong", (() => {
-        setLatency(wsClient.latencyMs);
-      }) as never);
-    }
+    return () => {
+      wsClient.off("connected", onConnected);
+      wsClient.off("disconnected", onDisconnected);
+      wsClient.off("reconnecting", onReconnecting);
+      wsClient.off("pong", onPong);
+    };
   }, [setStatus, setLatency]);
 
   useEffect(() => {

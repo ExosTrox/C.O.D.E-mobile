@@ -114,7 +114,9 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   sessionManager.setServices(providerRegistry, apiKeyService, analyticsService);
 
   // Reconcile session state with tmux reality
-  void sessionManager.reconcile();
+  sessionManager.reconcile().catch((err) => {
+    console.error("[SessionManager] Reconciliation failed:", err);
+  });
 
   // ── 1. Request ID ──────────────────────────────────────────
   app.use("*", requestId());
@@ -156,7 +158,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   // ── 5. Error handler ──────────────────────────────────────
   app.onError((err, c) => {
     const requestId = c.get("requestId");
-    console.error(`  [ERROR] ${requestId}: ${err.message}`);
+    console.error(`  [ERROR] ${requestId}: ${err instanceof Error ? err.message : String(err)}`);
 
     if (err instanceof HTTPException) {
       const body: ApiResponse<never> = {

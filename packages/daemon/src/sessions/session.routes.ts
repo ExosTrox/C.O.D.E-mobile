@@ -192,7 +192,7 @@ export function createSessionRoutes(sessionManager: SessionManager, dataDir: str
   // ── POST /:id/resize — resize terminal ──────────────────
   router.post("/:id/resize", async (c) => {
     const { cols, rows } = await c.req.json<{ cols: number; rows: number }>();
-    if (!cols || !rows || cols < 1 || rows < 1) {
+    if (!cols || !rows || cols < 1 || rows < 1 || cols > 500 || rows > 500) {
       const body: ApiResponse<never> = {
         success: false,
         error: { code: "VALIDATION_ERROR", message: "cols and rows must be positive integers" },
@@ -214,8 +214,18 @@ export function createSessionRoutes(sessionManager: SessionManager, dataDir: str
 
   // ── GET /:id/output — buffered output from offset ───────
   router.get("/:id/output", async (c) => {
+    const userId = c.get("user").sub;
     const id = c.req.param("id");
-    const offset = parseInt(c.req.query("offset") ?? "0", 10);
+    if (!sessionManager.isSessionOwner(id, userId)) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "NOT_FOUND", message: "Session not found" },
+      };
+      return c.json(body, 404);
+    }
+
+    const rawOffset = parseInt(c.req.query("offset") ?? "0", 10);
+    const offset = Math.max(0, Math.min(rawOffset, 500_000_000)); // clamp to 500MB
 
     const streamer = sessionManager.getStreamer(id);
     if (streamer) {

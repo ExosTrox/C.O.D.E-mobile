@@ -35,6 +35,8 @@ export class WsClient {
   connect(token: string): void {
     this.token = token;
     this.intentionalClose = false;
+    // Remove old visibility handler before setting up new one
+    this.removeVisibilityHandler();
     this.doConnect();
     this.setupVisibilityHandler();
   }

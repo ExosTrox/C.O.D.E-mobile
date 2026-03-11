@@ -2,7 +2,7 @@
 // Touch-friendly special keys bar for mobile terminal.
 // Compact single-row default, expandable for symbols & ctrl combos.
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronUp, Upload, Keyboard } from "lucide-react";
 import { toast } from "sonner";
@@ -82,6 +82,13 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
   const [uploading, setUploading] = useState(false);
   const ctrlTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (ctrlTimeoutRef.current) clearTimeout(ctrlTimeoutRef.current);
+    };
+  }, []);
 
   const sendKey = useCallback(
     (def: KeyDef) => {
