@@ -16,7 +16,7 @@ export function BottomNav() {
   if (location.pathname.startsWith("/terminal/")) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden safe-bottom px-4 pb-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden safe-bottom px-4 pb-2" aria-label="Main navigation">
       {/* Floating pill container */}
       <div className="glass-surface rounded-2xl border border-white/[0.06] shadow-xl shadow-black/30">
         <div className="flex items-center justify-around h-14">

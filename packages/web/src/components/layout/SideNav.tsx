@@ -23,7 +23,7 @@ export function SideNav() {
       </div>
 
       {/* Nav links */}
-      <nav className="flex-1 py-3 px-3 space-y-0.5">
+      <nav className="flex-1 py-3 px-3 space-y-0.5" aria-label="Main navigation">
         {navItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
