@@ -141,6 +141,13 @@ export class TmuxService {
     }
   }
 
+  /** Stop all tail processes and timers (for graceful shutdown). */
+  cleanupAllTailProcesses(): void {
+    for (const name of this.tailProcesses.keys()) {
+      this.cleanupTailProcess(name);
+    }
+  }
+
   // ── I/O ───────────────────────────────────────────────────
 
   /**

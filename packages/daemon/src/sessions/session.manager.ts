@@ -373,12 +373,14 @@ export class SessionManager {
 
   // ── Cleanup ───────────────────────────────────────────────
 
-  /** Stop all streamers (for graceful shutdown). */
+  /** Stop all streamers and tail processes (for graceful shutdown). */
   stopAll(): void {
     for (const [, streamer] of this.streamers) {
       streamer.stop();
     }
     this.streamers.clear();
+    // Kill all SSH tail processes on the legacy tmux
+    this.tmux.cleanupAllTailProcesses();
   }
 
   // ── Internals ─────────────────────────────────────────────

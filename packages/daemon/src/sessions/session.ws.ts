@@ -254,7 +254,7 @@ function handleUnsubscribe(
 // ── Keepalive ───────────────────────────────────────────────
 
 function startKeepalive(): void {
-  if (keepaliveTimer) return;
+  if (keepaliveTimer) clearInterval(keepaliveTimer);
 
   keepaliveTimer = setInterval(() => {
     const now = Date.now();

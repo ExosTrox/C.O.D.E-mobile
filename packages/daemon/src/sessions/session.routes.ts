@@ -192,7 +192,7 @@ export function createSessionRoutes(sessionManager: SessionManager, dataDir: str
   // ── POST /:id/resize — resize terminal ──────────────────
   router.post("/:id/resize", async (c) => {
     const { cols, rows } = await c.req.json<{ cols: number; rows: number }>();
-    if (!cols || !rows || cols < 1 || rows < 1 || cols > 500 || rows > 500) {
+    if (!cols || !rows || !Number.isInteger(cols) || !Number.isInteger(rows) || cols < 8 || rows < 3 || cols > 500 || rows > 500) {
       const body: ApiResponse<never> = {
         success: false,
         error: { code: "VALIDATION_ERROR", message: "cols and rows must be positive integers" },

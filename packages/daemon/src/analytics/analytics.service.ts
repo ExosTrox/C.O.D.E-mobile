@@ -295,15 +295,14 @@ export class AnalyticsService {
     const adapter = this.adapters.get(providerId);
     if (!adapter?.parseAnalytics) return;
 
-    this.fileOffsets.set(sessionId, 0);
-
     try {
       const watcher = watch(outputPath, () => {
         this.processNewOutput(sessionId, providerId, outputPath);
       });
+      this.fileOffsets.set(sessionId, 0);
       this.watchers.set(sessionId, watcher);
     } catch {
-      // File may not exist yet
+      // File may not exist yet — will be picked up on reconnect/reconcile
     }
   }
 

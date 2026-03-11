@@ -60,7 +60,10 @@ export class WsClient {
     if (this.connected && this.ws) {
       this.ws.send(JSON.stringify(message));
     } else {
-      this.messageQueue.push(message);
+      // Cap queue to prevent unbounded memory growth while disconnected
+      if (this.messageQueue.length < 500) {
+        this.messageQueue.push(message);
+      }
     }
   }
 
