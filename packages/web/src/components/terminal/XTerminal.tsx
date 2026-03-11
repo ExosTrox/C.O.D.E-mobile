@@ -228,109 +228,92 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     // ── WS subscribe & output handling ──────────────────────
 
     lastOffsetRef.current = 0;
-    let wsDelivered = false;
+    let gotAnyOutput = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let httpPollTimer: ReturnType<typeof setInterval> | null = null;
     let disposed = false;
+    let httpFetchCount = 0;
 
-    // Subscribe with retry — streamer may not be ready immediately after session creation
+    // Subscribe via WebSocket
     const trySubscribe = (offset?: number) => {
       if (disposed) return;
       wsClient.subscribe(sessionId, offset);
     };
 
-    // Start HTTP polling as fallback
-    const startHttpPolling = () => {
-      if (httpPollTimer || disposed) return;
-      httpPollTimer = setInterval(() => {
-        if (!disposed) void fetchOutputViaHttp();
-      }, 1500);
-    };
-
-    // Stop HTTP polling
-    const stopHttpPolling = () => {
-      if (httpPollTimer) { clearInterval(httpPollTimer); httpPollTimer = null; }
-    };
-
-    // HTTP fallback: fetch output via REST API if WS isn't delivering
+    // HTTP polling — always-on fallback, runs until output arrives then slows down
     const fetchOutputViaHttp = async () => {
       if (disposed) return;
+      httpFetchCount++;
       try {
         const result = await apiClient.getSessionOutput(sessionId, lastOffsetRef.current);
         if (result.output && result.output.length > 0) {
           term.write(result.output);
           lastOffsetRef.current = result.size;
+          gotAnyOutput = true;
         }
-      } catch {
-        // Silently retry on next poll
+      } catch (err) {
+        console.warn("[XTerminal] HTTP fetch error:", err);
+        // Show error only after several failed attempts with no output
+        if (!gotAnyOutput && httpFetchCount > 3) {
+          const msg = err instanceof Error ? err.message : "Connection error";
+          term.write(`\r\n\x1b[31m[${msg}]\x1b[0m\r\n`);
+        }
       }
     };
 
-    // Immediately fetch output via HTTP (most reliable — works even when WS is down)
+    // Start HTTP polling immediately — this is the most reliable path
     void fetchOutputViaHttp();
+    httpPollTimer = setInterval(() => {
+      if (!disposed) void fetchOutputViaHttp();
+    }, 2000);
 
-    // Also try WS for real-time streaming
+    // Also try WS for real-time streaming (lower latency than polling)
     if (wsClient.connected) {
       trySubscribe();
     }
-    // If not connected, the "connected" handler below will subscribe
 
     const handleOutput = (msg: { sessionId: string; data: string; offset: number }) => {
       if (msg.sessionId !== sessionId) return;
-      wsDelivered = true;
+      gotAnyOutput = true;
       if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-      // Stop HTTP polling once WS is working
-      stopHttpPolling();
       try {
         const raw = atob(msg.data);
         const bytes = new Uint8Array(raw.length);
         for (let i = 0; i < raw.length; i++) {
           bytes[i] = raw.charCodeAt(i);
         }
-        term.write(bytes);
-        lastOffsetRef.current = msg.offset + bytes.length;
+        // Only write if this data is ahead of what HTTP already delivered
+        const wsEnd = msg.offset + bytes.length;
+        if (wsEnd > lastOffsetRef.current) {
+          if (msg.offset >= lastOffsetRef.current) {
+            term.write(bytes);
+          } else {
+            // Partial overlap — write only the new part
+            const skip = lastOffsetRef.current - msg.offset;
+            term.write(bytes.slice(skip));
+          }
+          lastOffsetRef.current = wsEnd;
+        }
       } catch {
         term.write(msg.data);
       }
     };
 
     const handleError = (msg: { type: string; message: string }) => {
-      // If subscribe failed (streamer not ready), retry after a delay
       if (msg.message?.includes("not found") || msg.message?.includes("not active")) {
         if (!disposed) {
-          retryTimer = setTimeout(() => {
-            trySubscribe(lastOffsetRef.current);
-          }, 2000);
+          retryTimer = setTimeout(() => trySubscribe(lastOffsetRef.current), 2000);
         }
       }
     };
 
     const handleReconnect = () => {
-      wsDelivered = false;
-      stopHttpPolling();
       trySubscribe(lastOffsetRef.current);
-    };
-
-    const handleDisconnect = () => {
-      // WS went down — immediately start HTTP polling to keep output flowing
-      wsDelivered = false;
-      void fetchOutputViaHttp();
-      startHttpPolling();
     };
 
     wsClient.on("output", handleOutput as never);
     wsClient.on("error", handleError as never);
     wsClient.on("connected", handleReconnect as never);
-    wsClient.on("disconnected", handleDisconnect as never);
-
-    // If no WS output within 2s, start HTTP polling as fallback
-    retryTimer = setTimeout(() => {
-      if (!wsDelivered && !disposed) {
-        trySubscribe(0);
-        void fetchOutputViaHttp();
-        startHttpPolling();
-      }
-    }, 2000);
 
     // ── Input forwarding ────────────────────────────────────
 
@@ -355,7 +338,6 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
       wsClient.off("output", handleOutput as never);
       wsClient.off("error", handleError as never);
       wsClient.off("connected", handleReconnect as never);
-      wsClient.off("disconnected", handleDisconnect as never);
       wsClient.unsubscribe(sessionId);
       term.dispose();
       terminalRef.current = null;
