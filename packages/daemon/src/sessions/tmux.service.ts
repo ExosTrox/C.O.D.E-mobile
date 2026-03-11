@@ -309,6 +309,9 @@ export class TmuxService {
         }
       } catch {
         // Connection lost or session ended
+      } finally {
+        // Always close the writer to avoid fd leak
+        try { writer.end(); } catch { /* ignore */ }
       }
       console.warn(`[TmuxService] tail process exited for ${name}, scheduling restart`);
 
@@ -328,7 +331,8 @@ export class TmuxService {
             this.startTailPipe(name, remoteLogPath, localFilePath);
           }
         } catch {
-          // SSH still down — try again in 10s
+          // SSH still down — try again in 10s, but only if session not killed
+          if (!this.tailProcesses.has(name)) return;
           const retryTimer = setTimeout(() => {
             this.tailRestartTimers.delete(name);
             if (this.tailProcesses.has(name)) {

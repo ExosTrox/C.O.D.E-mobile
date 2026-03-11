@@ -38,13 +38,13 @@ const PROVIDER_LABELS: Record<string, string> = {
   shell: "Terminal",
 };
 
-const PROVIDER_COLORS: Record<string, string> = {
-  "claude-code": "bg-amber-500/10 text-amber-400 border-amber-500/15",
-  "openai-codex": "bg-emerald-500/10 text-emerald-400 border-emerald-500/15",
-  "gemini-cli": "bg-blue-500/10 text-blue-400 border-blue-500/15",
-  deepseek: "bg-indigo-500/10 text-indigo-400 border-indigo-500/15",
-  openclaw: "bg-pink-500/10 text-pink-400 border-pink-500/15",
-  shell: "bg-cyan-500/10 text-cyan-400 border-cyan-500/15",
+const PROVIDER_ACCENT: Record<string, string> = {
+  "claude-code": "#f59e0b",
+  "openai-codex": "#10b981",
+  "gemini-cli": "#3b82f6",
+  deepseek: "#6366f1",
+  openclaw: "#ec4899",
+  shell: "#06b6d4",
 };
 
 export function TerminalHeader({
@@ -79,6 +79,8 @@ export function TerminalHeader({
     .replace(/^deepseek-/, "")
     .replace(/-\d+$/, "");
 
+  const color = PROVIDER_ACCENT[providerId] ?? "var(--color-accent)";
+
   const statusColor = {
     connected: "bg-success",
     connecting: "bg-warning animate-pulse",
@@ -89,7 +91,7 @@ export function TerminalHeader({
   const StatusIcon = connectionStatus === "connected" ? Wifi : WifiOff;
 
   return (
-    <div className="flex items-center h-11 px-1 bg-surface-0/80 backdrop-blur-2xl border-b border-white/[0.04] gap-1 shrink-0">
+    <div className="flex items-center h-11 px-1 glass-surface border-b border-white/[0.04] gap-1 shrink-0 safe-top">
       {/* Back button */}
       <button
         onClick={() => navigate("/sessions")}
@@ -101,17 +103,19 @@ export function TerminalHeader({
 
       {/* Provider badge */}
       <div
-        className={cn(
-          "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold tracking-wide shrink-0 border",
-          PROVIDER_COLORS[providerId] ?? "bg-surface-2/60 text-text-secondary border-white/[0.04]",
-        )}
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide shrink-0"
+        style={{
+          background: `${color}12`,
+          color,
+          border: `1px solid ${color}20`,
+        }}
       >
         <span>{PROVIDER_LABELS[providerId] ?? providerId}</span>
-        <span className="opacity-40 font-normal">{shortModel}</span>
+        <span style={{ opacity: 0.4 }} className="font-normal">{shortModel}</span>
       </div>
 
       {/* Session name */}
-      <span className="flex-1 text-[11px] text-text-dimmed truncate text-center px-1">
+      <span className="flex-1 text-[11px] text-text-dimmed truncate text-center px-1 font-medium">
         {sessionName}
       </span>
 
@@ -132,7 +136,7 @@ export function TerminalHeader({
         </button>
 
         {menuOpen && (
-          <div className="absolute right-0 top-full mt-1 w-48 rounded-xl bg-surface-1 border border-white/[0.06] shadow-2xl z-50 py-1.5 overflow-hidden">
+          <div className="absolute right-0 top-full mt-1 w-48 rounded-xl bg-surface-2 border border-white/[0.08] shadow-2xl z-50 py-1 overflow-hidden">
             <MenuButton
               icon={Copy}
               label="Copy output"
@@ -194,7 +198,7 @@ function MenuButton({
         "flex items-center gap-2.5 w-full px-4 py-2.5 text-xs font-medium transition-colors",
         danger
           ? "text-error hover:bg-error/8"
-          : "text-text-secondary hover:bg-surface-2/50 hover:text-text-primary",
+          : "text-text-secondary hover:bg-surface-3/50 hover:text-text-primary",
       )}
     >
       <Icon className="h-3.5 w-3.5" />

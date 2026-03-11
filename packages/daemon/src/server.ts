@@ -193,7 +193,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   }
 
   // Cleanup stale entries every 5 minutes
-  setInterval(() => {
+  const rateLimitCleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [key, entry] of rateBuckets) {
       if (entry.resetAt <= now) rateBuckets.delete(key);
@@ -603,6 +603,7 @@ echo "You can access your terminal from https://$SERVER"
 
   // Cleanup function for graceful shutdown
   function cleanup() {
+    clearInterval(rateLimitCleanupInterval);
     analyticsService.stopAll();
     sessionManager.stopAll();
     stopKeepalive();

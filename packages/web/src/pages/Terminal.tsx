@@ -138,7 +138,7 @@ export function TerminalPage() {
       />
 
       {session.status === "stopped" && (
-        <div className="px-3 py-1.5 bg-yellow-900/30 border-b border-yellow-700/30 text-yellow-400 text-xs text-center">
+        <div className="px-3 py-1.5 bg-warning/8 border-b border-warning/10 text-warning text-[11px] text-center font-medium">
           Session stopped — output is read-only
         </div>
       )}

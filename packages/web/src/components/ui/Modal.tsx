@@ -41,8 +41,8 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
           <motion.div
             className={cn(
               "relative z-10 w-full max-h-[85dvh] overflow-y-auto",
-              "bg-surface-1 border border-white/[0.06] shadow-2xl",
-              "rounded-t-2xl md:rounded-2xl",
+              "bg-gradient-to-b from-surface-1 to-surface-0 border border-white/[0.06] shadow-2xl",
+              "rounded-t-3xl md:rounded-2xl",
               "md:max-w-lg md:mx-4",
               className,
             )}
@@ -59,7 +59,7 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
             {/* Header */}
             {title && (
               <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                <h2 className="text-base font-semibold text-text-primary tracking-tight">
+                <h2 className="text-base font-bold text-text-primary tracking-tight">
                   {title}
                 </h2>
                 <button
