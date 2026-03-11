@@ -2,6 +2,8 @@
 // Mounted at /api/v1/sessions
 
 import { Hono } from "hono";
+import { existsSync } from "fs";
+import { join } from "path";
 import type { ApiResponse, SessionStatus } from "@code-mobile/core";
 import type { DecodedToken } from "../auth/auth.service.js";
 import type { SessionManager } from "./session.manager.js";
@@ -13,7 +15,7 @@ interface SessionEnv {
   };
 }
 
-export function createSessionRoutes(sessionManager: SessionManager): Hono<SessionEnv> {
+export function createSessionRoutes(sessionManager: SessionManager, dataDir: string): Hono<SessionEnv> {
   const router = new Hono<SessionEnv>();
 
   // ── POST / — create session ─────────────────────────────
@@ -216,34 +218,50 @@ export function createSessionRoutes(sessionManager: SessionManager): Hono<Sessio
     const offset = parseInt(c.req.query("offset") ?? "0", 10);
 
     const streamer = sessionManager.getStreamer(id);
-    if (!streamer) {
-      // No active streamer — try to read from file directly
-      const session = sessionManager.getSession(id);
-      if (!session) {
-        const body: ApiResponse<never> = {
-          success: false,
-          error: { code: "NOT_FOUND", message: "Session not found" },
-        };
-        return c.json(body, 404);
-      }
-
+    if (streamer) {
+      // Streamer is active — read from it
+      const { bytes, offset: startOffset } = await streamer.getHistory(offset);
+      const output = new TextDecoder().decode(bytes);
       const body: ApiResponse<{ output: string; offset: number; size: number }> = {
         success: true,
-        data: { output: "", offset, size: 0 },
+        data: { output, offset: startOffset, size: startOffset + bytes.length },
       };
       return c.json(body);
     }
 
-    const { bytes, offset: startOffset } = await streamer.getHistory(offset);
-    const output = new TextDecoder().decode(bytes);
+    // No active streamer — try to read the output file directly
+    const session = sessionManager.getSession(id);
+    if (!session) {
+      const body: ApiResponse<never> = {
+        success: false,
+        error: { code: "NOT_FOUND", message: "Session not found" },
+      };
+      return c.json(body, 404);
+    }
+
+    // Read output file directly as fallback
+    const outputPath = join(dataDir, "sessions", id, "output.log");
+    if (existsSync(outputPath)) {
+      try {
+        const file = Bun.file(outputPath);
+        const size = file.size;
+        if (size > offset) {
+          const slice = file.slice(offset, size);
+          const output = new TextDecoder().decode(new Uint8Array(await slice.arrayBuffer()));
+          const body: ApiResponse<{ output: string; offset: number; size: number }> = {
+            success: true,
+            data: { output, offset, size },
+          };
+          return c.json(body);
+        }
+      } catch {
+        // File read failed — return empty
+      }
+    }
 
     const body: ApiResponse<{ output: string; offset: number; size: number }> = {
       success: true,
-      data: {
-        output,
-        offset: startOffset,
-        size: startOffset + bytes.length,
-      },
+      data: { output: "", offset, size: 0 },
     };
     return c.json(body);
   });

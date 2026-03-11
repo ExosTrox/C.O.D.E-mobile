@@ -228,15 +228,28 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     // ── WS subscribe & output handling ──────────────────────
 
     lastOffsetRef.current = 0;
-    let subscribed = false;
+    let wsDelivered = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let httpPollTimer: ReturnType<typeof setInterval> | null = null;
     let disposed = false;
 
     // Subscribe with retry — streamer may not be ready immediately after session creation
     const trySubscribe = (offset?: number) => {
-      if (subscribed || disposed) return;
+      if (disposed) return;
       wsClient.subscribe(sessionId, offset);
+    };
+
+    // Start HTTP polling as fallback
+    const startHttpPolling = () => {
+      if (httpPollTimer || disposed) return;
+      httpPollTimer = setInterval(() => {
+        if (!disposed) void fetchOutputViaHttp();
+      }, 1500);
+    };
+
+    // Stop HTTP polling
+    const stopHttpPolling = () => {
+      if (httpPollTimer) { clearInterval(httpPollTimer); httpPollTimer = null; }
     };
 
     // HTTP fallback: fetch output via REST API if WS isn't delivering
@@ -246,20 +259,12 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
         const result = await apiClient.getSessionOutput(sessionId, lastOffsetRef.current);
         if (result.output && result.output.length > 0) {
           term.write(result.output);
-          lastOffsetRef.current = result.size; // size = end offset
-          subscribed = true;
-          if (httpPollTimer) { clearInterval(httpPollTimer); httpPollTimer = null; }
+          lastOffsetRef.current = result.size;
         }
-      } catch (err) {
-        // Show error in terminal for debugging
-        const msg = err instanceof Error ? err.message : String(err);
-        term.write(`\r\n\x1b[31m[HTTP fetch error: ${msg}]\x1b[0m\r\n`);
+      } catch {
+        // Silently retry on next poll
       }
     };
-
-    // Show diagnostics in terminal
-    term.write(`\x1b[90m[Connecting to session ${sessionId.slice(0, 8)}...]\x1b[0m\r\n`);
-    term.write(`\x1b[90m[WS: ${wsClient.connected ? "connected" : "disconnected"}]\x1b[0m\r\n`);
 
     // Immediately fetch output via HTTP (most reliable — works even when WS is down)
     void fetchOutputViaHttp();
@@ -267,17 +272,15 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     // Also try WS for real-time streaming
     if (wsClient.connected) {
       trySubscribe();
-    } else {
-      term.write(`\x1b[33m[WebSocket not connected, using HTTP polling]\x1b[0m\r\n`);
     }
     // If not connected, the "connected" handler below will subscribe
 
     const handleOutput = (msg: { sessionId: string; data: string; offset: number }) => {
       if (msg.sessionId !== sessionId) return;
-      subscribed = true; // We got data, subscription is working
+      wsDelivered = true;
       if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
       // Stop HTTP polling once WS is working
-      if (httpPollTimer) { clearInterval(httpPollTimer); httpPollTimer = null; }
+      stopHttpPolling();
       try {
         const raw = atob(msg.data);
         const bytes = new Uint8Array(raw.length);
@@ -294,9 +297,7 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     const handleError = (msg: { type: string; message: string }) => {
       // If subscribe failed (streamer not ready), retry after a delay
       if (msg.message?.includes("not found") || msg.message?.includes("not active")) {
-        if (!subscribed && !disposed) {
-          console.warn(`[XTerminal] Subscribe failed for ${sessionId}, retrying in 2s...`);
-          term.write("\r\n\x1b[33m⏳ Connecting to session...\x1b[0m\r\n");
+        if (!disposed) {
           retryTimer = setTimeout(() => {
             trySubscribe(lastOffsetRef.current);
           }, 2000);
@@ -305,28 +306,31 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
     };
 
     const handleReconnect = () => {
-      subscribed = false;
+      wsDelivered = false;
+      stopHttpPolling();
       trySubscribe(lastOffsetRef.current);
+    };
+
+    const handleDisconnect = () => {
+      // WS went down — immediately start HTTP polling to keep output flowing
+      wsDelivered = false;
+      void fetchOutputViaHttp();
+      startHttpPolling();
     };
 
     wsClient.on("output", handleOutput as never);
     wsClient.on("error", handleError as never);
     wsClient.on("connected", handleReconnect as never);
+    wsClient.on("disconnected", handleDisconnect as never);
 
-    // If no output within 3s, start HTTP polling as fallback
+    // If no WS output within 2s, start HTTP polling as fallback
     retryTimer = setTimeout(() => {
-      if (!subscribed && !disposed) {
-        term.write(`\r\n\x1b[33m[No output after 3s — starting HTTP polling]\x1b[0m\r\n`);
-        term.write(`\x1b[90m[WS: ${wsClient.connected ? "connected" : "disconnected"}]\x1b[0m\r\n`);
-        // Try WS re-subscribe
+      if (!wsDelivered && !disposed) {
         trySubscribe(0);
-        // Also start HTTP polling every 2s as robust fallback
         void fetchOutputViaHttp();
-        httpPollTimer = setInterval(() => {
-          if (!disposed) void fetchOutputViaHttp();
-        }, 2000);
+        startHttpPolling();
       }
-    }, 3000);
+    }, 2000);
 
     // ── Input forwarding ────────────────────────────────────
 
@@ -351,6 +355,7 @@ export const XTerminal = memo(function XTerminal({ sessionId, className }: XTerm
       wsClient.off("output", handleOutput as never);
       wsClient.off("error", handleError as never);
       wsClient.off("connected", handleReconnect as never);
+      wsClient.off("disconnected", handleDisconnect as never);
       wsClient.unsubscribe(sessionId);
       term.dispose();
       terminalRef.current = null;

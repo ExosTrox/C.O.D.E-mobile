@@ -19,6 +19,34 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Cache buster: forces stale PWA/SW to update
+      // Change this version on each deploy that needs cache clearing
+      (function(){
+        var V="20260311b";
+        var k="cm-cache-v";
+        try {
+          if(localStorage.getItem(k)!==V){
+            localStorage.setItem(k,V);
+            if(navigator.serviceWorker){
+              navigator.serviceWorker.getRegistrations().then(function(r){
+                var p=[];
+                for(var i=0;i<r.length;i++) p.push(r[i].unregister());
+                return Promise.all(p);
+              }).then(function(){
+                return caches.keys();
+              }).then(function(n){
+                var p=[];
+                for(var i=0;i<n.length;i++) p.push(caches.delete(n[i]));
+                return Promise.all(p);
+              }).then(function(){
+                location.reload();
+              }).catch(function(){ location.reload(); });
+            } else { location.reload(); }
+          }
+        } catch(e){}
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

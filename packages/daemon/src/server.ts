@@ -266,7 +266,7 @@ export function createApp(config: Config, database: AppDatabase): AppHandle {
   app.route("/api/v1/auth", createAuthRoutes(authService, totpService, bootstrapCodeService));
 
   // Session routes (real implementation)
-  app.route("/api/v1/sessions", createSessionRoutes(sessionManager));
+  app.route("/api/v1/sessions", createSessionRoutes(sessionManager, config.dataDir));
 
   // Permission routes (mounted under sessions)
   app.route("/api/v1/sessions", createPermissionRoutes(permissionService));

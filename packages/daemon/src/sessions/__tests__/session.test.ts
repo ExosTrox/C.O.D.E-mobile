@@ -43,7 +43,7 @@ let sessionManager: SessionManager;
 let app: Hono;
 
 function createTestApp() {
-  const routes = createSessionRoutes(sessionManager);
+  const routes = createSessionRoutes(sessionManager, "/tmp/test-data");
   const testApp = new Hono();
   testApp.route("/api/v1/sessions", routes);
   return testApp;

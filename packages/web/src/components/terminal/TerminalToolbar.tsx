@@ -200,8 +200,10 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
         <input
           ref={fileInputRef}
           type="file"
+          accept="*/*"
           className="hidden"
           onChange={handleUpload}
+          tabIndex={-1}
         />
       </div>
 

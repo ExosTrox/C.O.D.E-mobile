@@ -51,10 +51,10 @@ export class SessionStreamer extends EventEmitter {
     });
 
     // Polling fallback: fs.watch can miss events for files written via SSH pipe.
-    // Poll every 500ms to catch any changes fs.watch missed.
+    // Poll every 200ms to catch any changes fs.watch missed.
     this.pollTimer = setInterval(() => {
       this.scheduleFlush();
-    }, 500);
+    }, 200);
   }
 
   stop(): void {
@@ -81,16 +81,23 @@ export class SessionStreamer extends EventEmitter {
    * Used when a client reconnects and needs to catch up on missed data.
    */
   async getHistory(fromOffset = 0): Promise<StreamChunk> {
-    const file = Bun.file(this.outputPath);
-    const size = file.size;
+    try {
+      if (!existsSync(this.outputPath)) {
+        return { bytes: new Uint8Array(0), offset: fromOffset };
+      }
+      const file = Bun.file(this.outputPath);
+      const size = file.size;
 
-    if (size <= fromOffset) {
+      if (size <= fromOffset) {
+        return { bytes: new Uint8Array(0), offset: fromOffset };
+      }
+
+      const slice = file.slice(fromOffset, size);
+      const bytes = new Uint8Array(await slice.arrayBuffer());
+      return { bytes, offset: fromOffset };
+    } catch {
       return { bytes: new Uint8Array(0), offset: fromOffset };
     }
-
-    const slice = file.slice(fromOffset, size);
-    const bytes = new Uint8Array(await slice.arrayBuffer());
-    return { bytes, offset: fromOffset };
   }
 
   /** Current byte offset (end of file as last seen). */

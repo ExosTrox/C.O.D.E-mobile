@@ -216,11 +216,10 @@ function handleSubscribe(
     });
   };
 
-  // Attach listener
-  streamer.on("data", listener);
+  // Mark subscription immediately to prevent duplicate subscribes
   client.subscriptions.set(sessionId, listener);
 
-  // Send history if requested
+  // Send history FIRST, then attach live listener to avoid out-of-order data
   const offset = fromOffset ?? 0;
   void streamer.getHistory(offset).then((history) => {
     if (history.bytes.length > 0) {
@@ -232,6 +231,8 @@ function handleSubscribe(
         offset: history.offset,
       });
     }
+    // Now attach live listener — after history is sent
+    streamer.on("data", listener);
   });
 }
 
