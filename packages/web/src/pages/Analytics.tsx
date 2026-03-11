@@ -9,7 +9,6 @@ import {
   DollarSign,
   Activity,
   TrendingUp,
-  TrendingDown,
 } from "lucide-react";
 import { Header } from "../components/layout/Header";
 import { Spinner } from "../components/ui/Spinner";
@@ -23,14 +22,14 @@ import { cn } from "../lib/cn";
 // ── Provider colors ─────────────────────────────────────────
 
 const PROVIDER_COLORS: Record<string, string> = {
-  "claude-code": "#d97706",
+  "claude-code": "#f59e0b",
   "openai-codex": "#10b981",
   "gemini-cli": "#3b82f6",
   deepseek: "#6366f1",
   openclaw: "#ec4899",
 };
 
-const DEFAULT_COLOR = "#7aa2f7";
+const DEFAULT_COLOR = "#7b93fd";
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -65,16 +64,16 @@ function StatCard({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.3 }}
-      className="rounded-xl bg-surface-1 border border-border p-4 space-y-2"
+      transition={{ delay: index * 0.05, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      className="rounded-2xl bg-gradient-to-br from-surface-1/80 to-surface-1/40 border border-white/[0.05] p-4 space-y-2.5 card-hover"
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs text-text-muted">{label}</span>
-        <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", iconColor)}>
+        <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">{label}</span>
+        <div className={cn("h-8 w-8 rounded-xl flex items-center justify-center", iconColor)}>
           <Icon className="h-4 w-4" />
         </div>
       </div>
-      <p className="text-xl font-semibold text-text-primary font-mono">{value}</p>
+      <p className="text-2xl font-bold text-text-primary font-mono tracking-tight">{value}</p>
     </motion.div>
   );
 }
@@ -100,16 +99,16 @@ function ProviderBars({
         const pct = (provider.tokenCount / maxTokens) * 100;
 
         return (
-          <div key={provider.providerId} className="space-y-1">
+          <div key={provider.providerId} className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-text-secondary capitalize">
+              <span className="text-text-secondary font-semibold capitalize">
                 {provider.providerId.replace(/-/g, " ")}
               </span>
-              <span className="text-text-muted font-mono">
+              <span className="text-text-muted font-mono text-[11px]">
                 {formatTokens(provider.tokenCount)} tokens
               </span>
             </div>
-            <div className="h-2.5 rounded-full bg-surface-2 overflow-hidden">
+            <div className="h-2 rounded-full bg-surface-0/60 overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${pct}%` }}
@@ -118,7 +117,7 @@ function ProviderBars({
                 style={{ backgroundColor: color }}
               />
             </div>
-            <div className="flex items-center justify-between text-xs text-text-dimmed">
+            <div className="flex items-center justify-between text-[11px] text-text-dimmed">
               <span>{provider.sessionCount} sessions</span>
               <span>{formatCost(provider.costEstimate)}</span>
             </div>
@@ -244,18 +243,18 @@ export function AnalyticsPage() {
       <Header title="Analytics" />
 
       <div className="flex-1 overflow-y-auto pb-24">
-        <div className="px-4 py-4 space-y-5 max-w-2xl mx-auto">
+        <div className="px-5 py-5 space-y-5 max-w-2xl mx-auto">
           {/* Period selector */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {(["24h", "7d", "30d"] as const).map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
                 className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                  "px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200",
                   period === p
-                    ? "bg-accent text-terminal-bg"
-                    : "bg-surface-2 text-text-muted hover:text-text-secondary",
+                    ? "bg-accent/12 text-accent border border-accent/20 shadow-sm shadow-accent/5"
+                    : "text-text-muted hover:text-text-secondary hover:bg-surface-2/40 border border-transparent",
                 )}
               >
                 {p}
@@ -265,30 +264,30 @@ export function AnalyticsPage() {
           </div>
 
           {/* Overview cards */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2.5">
             <StatCard
-              label="Total Sessions"
+              label="Sessions"
               value={String(overview?.totalSessions ?? 0)}
               icon={Layers}
               iconColor="bg-accent/10 text-accent"
               index={0}
             />
             <StatCard
-              label="Active Now"
+              label="Active"
               value={String(overview?.activeSessions ?? 0)}
               icon={Activity}
               iconColor="bg-success/10 text-success"
               index={1}
             />
             <StatCard
-              label="Tokens Used"
+              label="Tokens"
               value={formatTokens(overview?.totalTokens ?? 0)}
               icon={Zap}
               iconColor="bg-warning/10 text-warning"
               index={2}
             />
             <StatCard
-              label="Estimated Cost"
+              label="Cost"
               value={formatCost(overview?.estimatedCost ?? 0)}
               icon={DollarSign}
               iconColor="bg-info/10 text-info"
@@ -297,16 +296,16 @@ export function AnalyticsPage() {
           </div>
 
           {/* Provider breakdown */}
-          <div className="rounded-xl bg-surface-1 border border-border p-4 space-y-3">
-            <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider">
+          <div className="rounded-2xl bg-gradient-to-br from-surface-1/80 to-surface-1/40 border border-white/[0.05] p-4 space-y-3">
+            <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
               Provider Breakdown
             </h3>
             <ProviderBars data={providers ?? []} />
           </div>
 
           {/* Usage trend */}
-          <div className="rounded-xl bg-surface-1 border border-border p-4 space-y-3">
-            <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider">
+          <div className="rounded-2xl bg-gradient-to-br from-surface-1/80 to-surface-1/40 border border-white/[0.05] p-4 space-y-3">
+            <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
               Usage Trend
             </h3>
             <TrendChart data={trend ?? []} />
@@ -314,11 +313,11 @@ export function AnalyticsPage() {
 
           {/* Most used provider */}
           {overview?.mostUsedProvider && (
-            <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-surface-2/50 border border-border">
+            <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-surface-1/30 border border-white/[0.04]">
               <TrendingUp className="h-4 w-4 text-accent shrink-0" />
               <p className="text-xs text-text-muted">
-                Most used provider:{" "}
-                <span className="text-text-secondary font-medium capitalize">
+                Most used:{" "}
+                <span className="text-text-secondary font-semibold capitalize">
                   {overview.mostUsedProvider.replace(/-/g, " ")}
                 </span>
               </p>

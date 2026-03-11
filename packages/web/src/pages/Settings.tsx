@@ -50,11 +50,11 @@ function Section({
     <div className="space-y-2.5">
       <div className="flex items-center gap-2 px-1">
         <Icon className="h-3.5 w-3.5 text-text-dimmed" />
-        <h3 className="text-[11px] font-medium text-text-dimmed uppercase tracking-wider">
+        <h3 className="text-[11px] font-semibold text-text-dimmed uppercase tracking-wider">
           {title}
         </h3>
       </div>
-      <div className="rounded-xl bg-surface-1/50 border border-white/[0.04] divide-y divide-white/[0.04] overflow-hidden">
+      <div className="rounded-2xl bg-gradient-to-br from-surface-1/80 to-surface-1/40 border border-white/[0.05] divide-y divide-white/[0.04] overflow-hidden">
         {children}
       </div>
     </div>
