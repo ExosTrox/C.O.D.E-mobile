@@ -57,7 +57,10 @@ const PUBLIC_PATHS = [
 
 function isPublicPath(path: string): boolean {
   if (path === "/" || path === "/index.html") return true;
-  return PUBLIC_PATHS.some((p) => path.startsWith(p));
+  return PUBLIC_PATHS.some((p) =>
+    // Paths ending with "/" are prefix matches; others are exact or must be followed by /
+    p.endsWith("/") ? path.startsWith(p) : path === p || path.startsWith(p + "/"),
+  );
 }
 
 export interface AppHandle {
