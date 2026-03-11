@@ -43,8 +43,17 @@ let sessionManager: SessionManager;
 let app: Hono;
 
 function createTestApp() {
-  const routes = createSessionRoutes(sessionManager, "/tmp/test-data");
+  const routes = createSessionRoutes(sessionManager, dataDir);
   const testApp = new Hono();
+  // Inject a fake user for auth — session routes expect c.get("user").sub
+  testApp.use("/api/v1/sessions/*", async (c, next) => {
+    c.set("user" as never, { sub: "test-user-id", device: "test-device" } as never);
+    return next();
+  });
+  testApp.use("/api/v1/sessions", async (c, next) => {
+    c.set("user" as never, { sub: "test-user-id", device: "test-device" } as never);
+    return next();
+  });
   testApp.route("/api/v1/sessions", routes);
   return testApp;
 }
@@ -73,6 +82,11 @@ beforeEach(() => {
   dataDir = mkdtempSync(join(tmpdir(), "codemobile-session-test-"));
   database = new AppDatabase(dataDir);
   database.runMigrations();
+  // Create a test user so foreign key constraints are satisfied
+  database.db.run(
+    "INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)",
+    ["test-user-id", "testuser", "fakehash"],
+  );
   tmux = new TmuxService();
   sessionManager = new TestSessionManager(database.db, tmux, dataDir);
   app = createTestApp();
@@ -481,6 +495,10 @@ describe("Session HTTP Routes", () => {
       providerId: "claude-code",
       name: "http-test",
     });
+    if (createRes.status !== 201) {
+      const body = await createRes.json();
+      console.error("Create session failed:", JSON.stringify(body));
+    }
     expect(createRes.status).toBe(201);
     const createJson = await createRes.json();
     expect(createJson.success).toBe(true);
