@@ -71,8 +71,13 @@ export function App() {
         toastOptions={{
           style: {
             background: "var(--color-surface-2)",
-            border: "1px solid var(--color-border)",
+            border: "1px solid rgba(255,255,255,0.06)",
             color: "var(--color-text-primary)",
+            borderRadius: "16px",
+            fontSize: "13px",
+            fontWeight: "500",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+            backdropFilter: "blur(16px)",
           },
         }}
       />
