@@ -1,26 +1,71 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1a1b26"/>
-      <stop offset="100%" stop-color="#24283b"/>
+      <stop offset="0%" stop-color="#08090d"/>
+      <stop offset="50%" stop-color="#0c0e14"/>
+      <stop offset="100%" stop-color="#10121a"/>
     </linearGradient>
-    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#7aa2f7" stop-opacity="0.15"/>
+    <linearGradient id="arc-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="40%" stop-color="#7aa2f7"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="arc-grad2" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <radialGradient id="center-glow" cx="0.5" cy="0.5" r="0.4">
+      <stop offset="0%" stop-color="#7aa2f7" stop-opacity="0.1"/>
       <stop offset="100%" stop-color="#7aa2f7" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cursor-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7aa2f7"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
     </linearGradient>
+    <filter id="arc-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="cursor-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
   </defs>
-  <!-- Background -->
-  <rect width="192" height="192" rx="42" fill="url(#bg)"/>
-  <!-- Subtle top glow -->
-  <rect width="192" height="96" rx="42" fill="url(#glow)"/>
-  <!-- Window dots -->
-  <circle cx="29" cy="29" r="3" fill="#f7768e" opacity="0.8"/>
-  <circle cx="41" cy="29" r="3" fill="#e0af68" opacity="0.8"/>
-  <circle cx="53" cy="29" r="3" fill="#9ece6a" opacity="0.8"/>
-  <!-- Terminal prompt > -->
-  <text x="96" y="111" text-anchor="middle" font-family="'SF Mono','Fira Code','Cascadia Code',monospace" font-size="58" font-weight="700" fill="#7aa2f7">&gt;_</text>
-  <!-- Blinking cursor -->
-  <rect x="111" y="73" width="15" height="54" rx="2" fill="#7aa2f7" opacity="0.6"/>
-  <!-- Bottom accent line -->
-  <rect x="38" y="157" width="115" height="4" rx="2" fill="#7aa2f7" opacity="0.3"/>
+
+  <rect width="192" height="192" rx="41" fill="url(#bg)"/>
+  <rect width="192" height="192" rx="41" fill="url(#center-glow)"/>
+
+  <!-- Outer orbit -->
+  <circle cx="96" cy="96" r="69" fill="none" stroke="#7aa2f7" stroke-width="0.5" opacity="0.08"/>
+
+  <!-- Orbit dots -->
+  <circle cx="165" cy="96" r="1" fill="#38bdf8" opacity="0.7"/>
+  <circle cx="96" cy="27" r="1" fill="#a78bfa" opacity="0.6"/>
+  <circle cx="47" cy="139" r="1" fill="#2dd4bf" opacity="0.5"/>
+
+  <!-- Main C arc -->
+  <g filter="url(#arc-glow)">
+    <path d="M 128 49 A 56 56 0 0 0 53 83"
+          fill="none" stroke="url(#arc-grad)" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 53 110 A 56 56 0 0 0 128 143"
+          fill="none" stroke="url(#arc-grad2)" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 53 83 A 56 56 0 0 0 53 110"
+          fill="none" stroke="url(#arc-grad)" stroke-width="7" stroke-linecap="round"/>
+  </g>
+
+  <!-- Cursor -->
+  <g filter="url(#cursor-glow)">
+    <rect x="93" y="75" width="6" height="42" rx="2" fill="url(#cursor-grad)" opacity="0.9"/>
+  </g>
+
+  <!-- Prompt chevron -->
+  <path d="M 83 90 L 74 96 L 83 102"
+        fill="none" stroke="#7aa2f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+
+  <!-- Code dots -->
+  <circle cx="109" cy="92" r="2" fill="#a78bfa" opacity="0.35"/>
+  <circle cx="116" cy="92" r="2" fill="#a78bfa" opacity="0.2"/>
+
+  <!-- Bottom accent -->
+  <rect x="66" y="161" width="60" height="2" rx="1" fill="url(#arc-grad)" opacity="0.2"/>
 </svg>
