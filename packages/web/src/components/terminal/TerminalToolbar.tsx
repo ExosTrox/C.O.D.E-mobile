@@ -136,7 +136,7 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
   }, []);
 
   return (
-    <div className="bg-[#0d0f14]/90 backdrop-blur-2xl border-t border-white/[0.06] safe-bottom select-none md:hidden">
+    <div className="bg-surface-0/90 backdrop-blur-2xl border-t border-white/[0.06] safe-bottom select-none md:hidden">
       {/* ── Primary Row: always visible ──────────────── */}
       <div className="flex items-center gap-1 px-1.5 py-1.5">
         {/* Main keys */}
@@ -153,10 +153,10 @@ export function TerminalToolbar({ sessionId }: TerminalToolbarProps) {
 
         {/* Action buttons */}
         <div className="flex gap-1 shrink-0 pl-1 border-l border-white/[0.06]">
-          {/* Upload */}
+          {/* Upload — uses onClick (not onPointerDown) so mobile browsers
+              allow the file picker to open from a trusted user gesture */}
           <button
-            onPointerDown={(e) => {
-              e.preventDefault();
+            onClick={() => {
               if (navigator.vibrate) navigator.vibrate(8);
               fileInputRef.current?.click();
             }}
@@ -295,7 +295,7 @@ function ToolbarKey({
               : "h-9 px-2.5 min-w-[2rem]",
         // Colors
         isActive
-          ? "bg-accent/20 border border-accent/40 text-accent shadow-[0_0_8px_rgba(var(--color-accent-raw),0.15)]"
+          ? "bg-accent/20 border border-accent/40 text-accent accent-dot-glow"
           : isCtrlToggle
             ? "bg-white/[0.04] border border-white/[0.06] text-white/50 hover:text-accent hover:border-accent/20"
             : isCtrlCombo

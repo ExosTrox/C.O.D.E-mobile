@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { Layers, Box, BarChart3, Settings } from "lucide-react";
 import { cn } from "../../lib/cn";
 
@@ -10,6 +10,11 @@ const navItems = [
 ] as const;
 
 export function BottomNav() {
+  const location = useLocation();
+
+  // Hide bottom nav on terminal pages — terminal has its own header + toolbar
+  if (location.pathname.startsWith("/terminal/")) return null;
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden safe-bottom">
       {/* Glass background with top border glow */}
@@ -33,7 +38,7 @@ export function BottomNav() {
               <>
                 {/* Active indicator line */}
                 {isActive && (
-                  <span className="absolute -top-[1px] left-1/2 -translate-x-1/2 w-6 h-[2px] rounded-full bg-accent shadow-[0_0_8px_rgba(110,142,247,0.5)]" />
+                  <span className="absolute -top-[1px] left-1/2 -translate-x-1/2 w-6 h-[2px] rounded-full bg-accent accent-line-glow" />
                 )}
                 <Icon
                   className={cn(

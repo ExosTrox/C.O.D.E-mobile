@@ -8,6 +8,7 @@ import { Shell } from "./components/layout/Shell";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
 import { DefaultRedirect } from "./components/layout/DefaultRedirect";
 import { PageLoader } from "./components/ui/PageLoader";
+import { useThemeSync } from "./hooks/use-theme";
 
 // Critical path: loaded eagerly (login/connect flow)
 import { ConnectPage } from "./pages/Connect";
@@ -34,6 +35,8 @@ const queryClient = new QueryClient({
 });
 
 export function App() {
+  useThemeSync();
+
   return (
     <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
@@ -67,9 +70,9 @@ export function App() {
         position="top-center"
         toastOptions={{
           style: {
-            background: "#1f2335",
-            border: "1px solid #292e42",
-            color: "#c0caf5",
+            background: "var(--color-surface-2)",
+            border: "1px solid var(--color-border)",
+            color: "var(--color-text-primary)",
           },
         }}
       />

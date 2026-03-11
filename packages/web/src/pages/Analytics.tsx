@@ -182,7 +182,7 @@ function TrendChart({
             x2={W - PAD}
             y1={H - PAD - pct * (H - 2 * PAD)}
             y2={H - PAD - pct * (H - 2 * PAD)}
-            stroke="#292e42"
+            stroke="var(--color-border)"
             strokeWidth="1"
           />
         ))}
@@ -191,7 +191,7 @@ function TrendChart({
         <polyline
           points={tokenPoints}
           fill="none"
-          stroke="#7aa2f7"
+          stroke="var(--color-accent)"
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -201,7 +201,7 @@ function TrendChart({
         <polyline
           points={costPoints}
           fill="none"
-          stroke="#10b981"
+          stroke="var(--color-success)"
           strokeWidth="2"
           strokeDasharray="4 3"
           strokeLinecap="round"
@@ -212,17 +212,17 @@ function TrendChart({
         {data.map((d, i) => {
           const x = PAD + (i / (data.length - 1)) * (W - 2 * PAD);
           const y = H - PAD - (d.tokens / maxTokens) * (H - 2 * PAD);
-          return <circle key={i} cx={x} cy={y} r="3" fill="#7aa2f7" />;
+          return <circle key={i} cx={x} cy={y} r="3" fill="var(--color-accent)" />;
         })}
       </svg>
 
       <div className="flex items-center justify-center gap-4 mt-2 text-xs text-text-muted">
         <div className="flex items-center gap-1.5">
-          <div className="h-0.5 w-4 rounded-full bg-[#7aa2f7]" />
+          <div className="h-0.5 w-4 rounded-full bg-accent" />
           <span>Tokens</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-0.5 w-4 rounded-full bg-[#10b981] border-dashed" />
+          <div className="h-0.5 w-4 rounded-full bg-success" />
           <span>Cost</span>
         </div>
       </div>

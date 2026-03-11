@@ -559,7 +559,7 @@ export function SettingsPage() {
 
             <div className="px-4 py-3.5">
               <Select
-                label="Theme"
+                label="Theme (Terminal & UI)"
                 value={theme}
                 onChange={(e) => setTheme(e.target.value)}
                 options={[
