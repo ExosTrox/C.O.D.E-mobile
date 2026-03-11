@@ -117,7 +117,7 @@ export function ProviderDetail({ provider, apiKey, open, onClose }: ProviderDeta
 
         {/* ── Install command ────────────────────────── */}
         <div className="space-y-2">
-          <h3 className="text-[11px] font-medium text-text-dimmed uppercase tracking-wider">Installation</h3>
+          <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Installation</h3>
           <button
             onClick={handleCopyInstall}
             className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-surface-2/40 border border-white/[0.04] hover:border-white/[0.06] transition-colors text-left group"
@@ -133,7 +133,7 @@ export function ProviderDetail({ provider, apiKey, open, onClose }: ProviderDeta
         {/* ── API Key section ────────────────────────── */}
         {provider.requiresApiKey && (
           <div className="space-y-2">
-            <h3 className="text-[11px] font-medium text-text-dimmed uppercase tracking-wider">API Key</h3>
+            <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">API Key</h3>
 
             {apiKey && !showKeyInput ? (
               <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-surface-2/40 border border-white/[0.04]">
@@ -222,7 +222,7 @@ export function ProviderDetail({ provider, apiKey, open, onClose }: ProviderDeta
 
         {/* ── Models list ────────────────────────────── */}
         <div className="space-y-2">
-          <h3 className="text-[11px] font-medium text-text-dimmed uppercase tracking-wider">
+          <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
             Models ({provider.models.length})
           </h3>
           <div className="space-y-1.5">
